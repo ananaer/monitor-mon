@@ -1,15 +1,15 @@
 {
     "accountAssociation": {
-        "header": "Placeholder: Generate via Warpcast Developer Tool",
-        "payload": "Placeholder",
-        "signature": "Placeholder"
+        "header": "eyJmaWQiOjI2NDMzNiwidHlwZSI6ImF1dGgiLCJrZXkiOiIweDA4ZDNkYTEwMjVFNzI5ZWRhNGE2NTFhZjNmOTQyNzdCNjlEYTMxYmMifQ",
+        "payload": "eyJkb21haW4iOiJmYXJjYXN0ZXItbWluaS1hcHAtcm9zeS52ZXJjZWwuYXBwIn0",
+        "signature": "+PTXs4LokKVBL7pWIoBIuEIo+9crcZ+e0BKZg6nn6aM/b+jeXpFu1rHkslZKM+YOiKGX5ORyV30umyFmO7GrUhw="
     },
     "miniapp": {
         "version": "1",
         "name": "Sheep a Sheep",
-        "iconUrl": "https://CHANGE-ME-TO-YOUR-DOMAIN/assets/sheep/icon.png",
-        "homeUrl": "https://CHANGE-ME-TO-YOUR-DOMAIN",
-        "splashImageUrl": "https://CHANGE-ME-TO-YOUR-DOMAIN/assets/sheep/bg_forest.png",
+        "iconUrl": "https://farcaster-mini-app-rosy.vercel.app/assets/sheep/icon.png",
+        "homeUrl": "https://farcaster-mini-app-rosy.vercel.app",
+        "splashImageUrl": "https://farcaster-mini-app-rosy.vercel.app/assets/sheep/bg_forest.png",
         "splashBackgroundColor": "#F5F5DC",
         "primaryCategory": "games",
         "description": "A relaxing 3D tile-matching puzzle game.",
