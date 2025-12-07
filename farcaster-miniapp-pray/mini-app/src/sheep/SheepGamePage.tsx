@@ -11,7 +11,7 @@
  * - 分层可视化、柔和按钮组、动画（点击压缩/消除闪烁/失败抖动）、轻量音效（Web Audio）。
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SheepBuffer } from "./SheepBuffer";
 import SheepOverlay from "./SheepOverlay";
@@ -32,21 +32,48 @@ import useSoundEffects from "./useSoundEffects";
 
 const TILE_SET = ["🐑", "🐱", "🐶", "🐷", "🐔", "🐸", "🐙", "🐝", "🐠", "🌽", "🥕", "🍅", "🍆", "🥑", "🍄", "🍇"];
 
-const GAME_OPTIONS: GameOptions = {
-  columns: 9,
-  minRows: 5,
-  maxRows: 9,
-  maxStackHeight: 3,
-  tileSet: TILE_SET,
-};
+// Difficulty adjustment: Use a subset of tiles for the start
+// Difficulty adjustment: Use a subset of tiles for the start
+const ACTIVE_TILE_SET = TILE_SET.slice(0, 7); // Only first 7 types
+
+function getOptionsForLevel(level: number, seed: number): GameOptions {
+  if (level === 1) {
+    // Tutorial Level: TINY board, < 10 tiles (aim for 9)
+    // 3 columns, 3 rows, 1 layer stack = 9 tiles total.
+    return {
+      columns: 3,
+      minRows: 3,
+      maxRows: 3,
+      maxStackHeight: 1,
+      tileSet: ACTIVE_TILE_SET.slice(0, 3), // Only 3 types for matching
+      seed
+    };
+  }
+
+  // Level 2+: Standard "Easy" difficulty
+  return {
+    columns: 6,
+    minRows: 3,
+    maxRows: 5,
+    maxStackHeight: 2,
+    tileSet: ACTIVE_TILE_SET,
+    seed
+  };
+}
 
 const SLOT_LIMIT = 7;
 
 type Status = "playing" | "win" | "lose";
 
 export function SheepGamePage() {
+  const [level, setLevel] = useState(1);
   const [seed, setSeed] = useState(() => Date.now());
-  const [columns, setColumns] = useState<Column[]>(() => generateColumns({ ...GAME_OPTIONS, seed }));
+
+  // Hydrate columns based on current level and seed
+  const [columns, setColumns] = useState<Column[]>(() =>
+    generateColumns(getOptionsForLevel(1, Date.now()))
+  );
+
   const [buffer, setBuffer] = useState<BufferEntry[]>([]);
   const [status, setStatus] = useState<Status>("playing");
   const [moves, setMoves] = useState(0);
@@ -64,20 +91,21 @@ export function SheepGamePage() {
     setStats(recordSheepResult(moves, clearedTriples));
   }, [status, moves, clearedTriples]);
 
-  const statsLine = useMemo(() => {
-    const best = Number.isFinite(stats.bestMoves) ? stats.bestMoves : "未记录";
-    const last = stats.lastPlay ? new Date(stats.lastPlay).toLocaleString() : "无";
-    return `最佳步数: ${best} | 累计组三: ${stats.totalClears} | 尝试: ${stats.attempts} | 上次: ${last}`;
-  }, [stats]);
-
-  const restart = (newSeed?: number) => {
-    const nextSeed = newSeed ?? seed;
-    setSeed(nextSeed);
-    setColumns(generateColumns({ ...GAME_OPTIONS, seed: nextSeed }));
+  const startGame = (lvl: number, newSeed: number) => {
+    setSeed(newSeed);
+    setLevel(lvl);
+    setColumns(generateColumns(getOptionsForLevel(lvl, newSeed)));
     setBuffer([]);
     setStatus("playing");
     setMoves(0);
     setClearedTriples(0);
+  };
+
+  const restart = () => startGame(level, seed); // Retry current
+  const newGame = () => startGame(1, Date.now()); // Reset to Level 1
+  const nextLevel = () => {
+    sound.play("win"); // bonus sound?
+    startGame(level + 1, Date.now());
   };
 
   const handleSelect = (tile: SheepTile) => {
@@ -118,45 +146,34 @@ export function SheepGamePage() {
     }
   };
 
-  const headerText =
-    status === "playing"
-      ? "点击每列顶层牌放入 7 槽，三张同样立即消除。槽满且无法消除则失败。"
-      : status === "win"
-        ? "全部清空，通关！再来一局？"
-        : "槽满且无可消，挑战失败，再试一次吧。";
-
   return (
     <section className="page">
-      <div className="page-header">
-        <div>
-          <h2>羊了个羊 克隆版</h2>
-          <p className="muted">{headerText}</p>
-        </div>
-        <div className="chip">🎲 种子: {seed}</div>
+      <div className="game-bg" style={{ backgroundImage: "url(/assets/sheep/bg_forest.png)" }} />
+
+      <div className="game-header">
+        <h2 className="header-title">Match 3 tiles!</h2>
+        <div className="chip">Level {level}</div>
       </div>
 
       <SheepOverlay
         status={status}
         moves={moves}
         clearedTriples={clearedTriples}
-        attempts={stats.attempts}
-        bestMoves={Number.isFinite(stats.bestMoves) ? stats.bestMoves : null}
-        onRestart={() => restart(seed)}
-        onNewGame={() => restart(Date.now())}
-        onShuffle={undefined}
-        onUndo={undefined}
+        level={level}
+        onRestart={restart}
+        onNewGame={newGame}
+        onNextLevel={nextLevel}
       />
 
-      <SheepPile columns={columns} onSelect={handleSelect} />
-
-      <div>
-        <h4 className="muted" style={{ marginBottom: 8 }}>
-          缓冲区（7 槽）
-        </h4>
-        <SheepBuffer buffer={buffer} slotLimit={SLOT_LIMIT} pulseKey={pulseKey} isFailing={status === "lose"} />
+      <div className="game-board">
+        <SheepPile columns={columns} onSelect={handleSelect} />
       </div>
 
-      <div className="match-summary">{statsLine}</div>
+      <div className="game-footer">
+        <div className="buffer-panel">
+          <SheepBuffer buffer={buffer} slotLimit={SLOT_LIMIT} pulseKey={pulseKey} isFailing={status === "lose"} />
+        </div>
+      </div>
     </section>
   );
 }

@@ -7,10 +7,9 @@
 import { computeSelectableTiles, jitterForId, type Column, type SheepTile } from "./logic";
 import { SheepTileView } from "./SheepTileView";
 
-const ROW_SPACING = 30;
-const LAYER_OFFSET_Y = 8;
-const LAYER_OFFSET_X = 6;
-const COLUMN_MIN_HEIGHT = 320;
+const GRID_X = 52; // Horizontal step
+const GRID_Y = 44; // Vertical step
+const LAYER_OFFSET_Y = 6; // Slight vertical lift for layers
 
 type Props = {
   columns: Column[];
@@ -20,31 +19,49 @@ type Props = {
 export function SheepPile({ columns, onSelect }: Props) {
   const selectable = new Set(computeSelectableTiles(columns).map((t) => t.id));
 
+  // Determine board width to center it
+  const numCols = columns.length;
+  const boardWidth = numCols * GRID_X;
+
+  // Calculate rendering logic
+  const allTiles = columns.flatMap(col => col.map(t => ({ ...t })));
+
   return (
-    <div className="sheep-pile">
-      {columns.map((col, colIndex) => {
-        const maxRow = col.reduce((max, t) => Math.max(max, t.row), 0);
-        const height = Math.max(COLUMN_MIN_HEIGHT, (maxRow + 2) * ROW_SPACING);
+    <div
+      className="sheep-pile"
+      style={{
+        width: boardWidth,
+        minHeight: 400,
+        margin: "0 auto"  // Center the pile container
+      }}
+    >
+      {allTiles.map((tile) => {
+        const isSelectable = selectable.has(tile.id);
+        const jitterX = jitterForId(tile.id, 2);
+        const jitterY = jitterForId(tile.id + "y", 2);
+
+        // Grid Position
+        const x = tile.col * GRID_X + jitterX;
+        const y = tile.row * GRID_Y - (tile.layer * LAYER_OFFSET_Y) + jitterY;
+
         return (
-          <div key={colIndex} className="sheep-column" style={{ minHeight: height }}>
-            {col.map((tile) => {
-              const isSelectable = selectable.has(tile.id);
-              const jitter = jitterForId(tile.id, 3); // deterministic -3..3 px
-              return (
-                <div
-                  key={tile.id}
-                  className="sheep-tile-wrap"
-                  style={{
-                    position: "absolute",
-                    top: tile.row * ROW_SPACING - tile.layer * LAYER_OFFSET_Y,
-                    left: tile.layer * LAYER_OFFSET_X + jitter,
-                    zIndex: 10 + tile.layer,
-                  }}
-                >
-                  <SheepTileView tile={tile} selectable={isSelectable} onSelect={onSelect} />
-                </div>
-              );
-            })}
+          <div
+            key={tile.id}
+            className="sheep-tile-wrap"
+            style={{
+              position: "absolute",
+              top: y,
+              left: x,
+              zIndex: 10 + tile.layer + tile.row, // Better z-indexing: lower rows should be on top for 2.5D look? Actually default layer sort is safer.
+              // Let's rely on logic.ts sort (layer asc) + explicit zIndex from style
+            }}
+          >
+            {/* Pass style overriding position to the component if needed, or wrap it */}
+            <SheepTileView
+              tile={tile}
+              selectable={isSelectable}
+              onSelect={onSelect}
+            />
           </div>
         );
       })}

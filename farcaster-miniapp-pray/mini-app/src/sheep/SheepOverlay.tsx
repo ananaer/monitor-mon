@@ -6,38 +6,69 @@ type Props = {
   status: "playing" | "win" | "lose";
   moves: number;
   clearedTriples: number;
-  attempts: number;
-  bestMoves: number | null;
+  level: number;
   onRestart: () => void;
   onNewGame: () => void;
-  onShuffle?: () => void;
-  onUndo?: () => void;
+  onNextLevel: () => void;
 };
 
-export function SheepOverlay({ status, moves, clearedTriples, attempts, bestMoves, onRestart, onNewGame, onShuffle, onUndo }: Props) {
-  return (
-    <div className="sheep-overlay">
-      <div className="chip-row">
-        <span className="chip">🎮 状态: {status === "playing" ? "进行中" : status === "win" ? "胜利" : "失败"}</span>
-        <span className="chip">⏱ 步数: {moves}</span>
-        <span className="chip">📦 消除组三: {clearedTriples}</span>
-        <span className="chip">🔁 尝试: {attempts}</span>
-        <span className="chip">🎯 最佳步数: {bestMoves ?? "未记录"}</span>
-      </div>
+export function SheepOverlay({ status, moves, clearedTriples, level, onRestart, onNewGame, onNextLevel }: Props) {
+  const isGameOver = status === "win" || status === "lose";
 
-      <div className="match-actions match-actions--row">
-        <button type="button" className="btn btn--primary" onClick={onRestart}>
-          <span className="btn-icon">🔄</span> 重新本局
-        </button>
-        <button type="button" className="btn btn--primary" onClick={onNewGame}>
-          <span className="btn-icon">⭐</span> 新局
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={onShuffle} disabled={!onShuffle}>
-          <span className="btn-icon">🔀</span> 洗牌
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={onUndo} disabled={!onUndo}>
-          <span className="btn-icon">↩️</span> 撤销
-        </button>
+  // HUD for playing state
+  if (!isGameOver) {
+    return (
+      <div className="sheep-hud">
+        <div className="chip-row">
+          {/* Minimal HUD */}
+          <span className="chip">Level {level}</span>
+          <span className="chip">Moves: {moves}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Modal for Game Over state
+  return (
+    <div className="sheep-modal-overlay">
+      <div className="sheep-modal">
+        <div className="modal-header">
+          {status === "win" ? "🎉 Victory!" : "😭 Game Over"}
+        </div>
+
+        <div className="modal-content">
+          <p>
+            {status === "win"
+              ? "Level Complete! Ready for the next challenge?"
+              : "No more moves possible!"}
+          </p>
+          <div className="stat-grid">
+            <div className="stat-item">
+              <div className="stat-label">Moves</div>
+              <div className="stat-val">{moves}</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-label">Cleared</div>
+              <div className="stat-val">{clearedTriples}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          {status === "win" ? (
+            <button type="button" className="btn btn--primary btn--large" onClick={onNextLevel}>
+              Next Level ➡
+            </button>
+          ) : (
+            <button type="button" className="btn btn--primary btn--large" onClick={onRestart}>
+              Try Again 🔄
+            </button>
+          )}
+
+          <button type="button" className="btn btn--secondary" onClick={onNewGame}>
+            Restart Game (Lvl 1)
+          </button>
+        </div>
       </div>
     </div>
   );

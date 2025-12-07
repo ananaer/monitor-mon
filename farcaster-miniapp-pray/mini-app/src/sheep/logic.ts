@@ -33,6 +33,150 @@ export type BufferResolveResult = {
 
 export function generateColumns(options: GameOptions): Column[] {
   const rng = createRng(options.seed ?? Date.now());
+
+  // Retry loop to ensure valid topology
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const columns = tryGenerateSolvableLevel(options, rng);
+    if (columns) {
+      return columns;
+    }
+  }
+
+  // Fallback (extremely rare): return a random one if solvable gen fails repeatedly
+  // Ideally this should not happen with reasonable params.
+  console.warn("Failed to generate solvable level after 100 attempts, falling back to random.");
+  return generateRandomColumns(options, rng);
+}
+
+// Internal helper for old random logic (fallback)
+function generateRandomColumns(options: GameOptions, rng: Rng): Column[] {
+  // ... simplified version of previous logic just for fallback ...
+  // For now, let's just perform the topology generation and random fill
+  // Re-implementing simplified version to save space/complexity as fallback
+  const plans = generateTopology(options, rng);
+  const totalTiles = plans.flat().reduce((a, b) => a + b, 0);
+  const pool = buildTilePool(totalTiles, options.tileSet, rng);
+  return fillTopology(plans, pool, options.columns);
+}
+
+function tryGenerateSolvableLevel(options: GameOptions, rng: Rng): Column[] | null {
+  // 1. Generate Topology
+  const plans = generateTopology(options, rng);
+  const totalTiles = plans.flat().reduce((a, b) => a + b, 0);
+
+  if (totalTiles % 3 !== 0) return null; // Should be handled by generateTopology logic
+
+  // 2. Create Empty Board State
+  // We need to track which tiles are "solved" (removed) to simulate valid moves
+  type SimTile = { id: string; col: number; row: number; layer: number; type: string | null };
+  const allTiles: SimTile[] = [];
+
+  // Build structure
+  let cursor = 0;
+  for (let col = 0; col < options.columns; col++) {
+    const heights = plans[col];
+    for (let row = 0; row < heights.length; row++) {
+      for (let layer = 0; layer < heights[row]; layer++) {
+        allTiles.push({
+          id: `c${col}-r${row}-l${layer}`, // temporary ID
+          col, row, layer, type: null
+        });
+        cursor++;
+      }
+    }
+  }
+
+  // 3. Constructive Assignment (Reverse Solver)
+  // repeatedly pick 3 selectable tiles and assign them the same type
+  const solvedIndices = new Set<number>(); // Indices in allTiles that are "removed"
+
+  // Helper to check selectability given current solved state
+  const isSelectableSim = (targetIdx: number) => {
+    const target = allTiles[targetIdx];
+    // A tile is selectable if no UNSOLVED tile is above it
+    // Check all potentially blocking tiles
+    for (let i = 0; i < allTiles.length; i++) {
+      if (solvedIndices.has(i)) continue; // Ignored solved tiles
+      const other = allTiles[i];
+      if (other.col === target.col && other.row === target.row && other.layer > target.layer) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  while (solvedIndices.size < allTiles.length) {
+    // Find candidates
+    const candidates: number[] = [];
+    for (let i = 0; i < allTiles.length; i++) {
+      if (!solvedIndices.has(i) && isSelectableSim(i)) {
+        candidates.push(i);
+      }
+    }
+
+    if (candidates.length < 3) {
+      return null; // Dead end, topology restricts valid triplets
+    }
+
+    // Pick 3 random candidates
+    const group: number[] = [];
+    const available = [...candidates];
+
+    for (let k = 0; k < 3; k++) {
+      const pickIdx = Math.floor(rng() * available.length);
+      const pickedTileIdx = available[pickIdx];
+      group.push(pickedTileIdx);
+      // Remove from available local array so we don't pick same one
+      available.splice(pickIdx, 1);
+    }
+
+    // "Remove" them from board (add to solved)
+    group.forEach(idx => solvedIndices.add(idx));
+
+    // Determine type for this triplet
+    // We can assign types later or now. Let's record the grouping.
+    // For simplicity, just pick a random type now.
+    const type = options.tileSet[Math.floor(rng() * options.tileSet.length)];
+    group.forEach(idx => {
+      allTiles[idx].type = type;
+    });
+  }
+
+  // 4. Convert back to Column format
+  const columns: Column[] = Array.from({ length: options.columns }, () => []);
+
+  // Re-sort tiles into their columns
+  // Note: logic.ts usually creates IDs with index at the end. We reconstruct proper IDs.
+  // We need to output them in order.
+
+  // Group by column
+  const colsData: SimTile[][] = Array.from({ length: options.columns }, () => []);
+  allTiles.forEach(t => colsData[t.col].push(t));
+
+  for (let c = 0; c < options.columns; c++) {
+    // Sort logic requires us to return tiles in specific order? 
+    // Usually logic.ts handles flattening, but valid Column is just array of SheepTile.
+    // Let's ensure they are sorted by layer for consistency, though UI handles absolute pos.
+    colsData[c].sort((a, b) => a.layer - b.layer); // low layer first? or standard order?
+
+    // Re-assign IDs to match standard format if needed, or just keep unique.
+    // Standard format: `c${col}-r${row}-l${layer}-${cursor}`
+    // We'll regenerate cursor based unique IDs
+    colsData[c].forEach((t, i) => {
+      columns[c].push({
+        id: `${t.id}-${c * 1000 + i}`, // Ensure unique
+        col: t.col,
+        row: t.row,
+        layer: t.layer,
+        type: t.type!
+      });
+    });
+  }
+
+  return columns;
+}
+
+function generateTopology(options: GameOptions, rng: Rng): number[][] {
   const plans: number[][] = [];
   let totalTiles = 0;
 
@@ -47,11 +191,10 @@ export function generateColumns(options: GameOptions): Column[] {
     plans.push(heights);
   }
 
-  // Ensure total tiles is a multiple of 3 to keep clears possible.
+  // Ensure total tiles is a multiple of 3
   const remainder = totalTiles % 3;
   if (remainder !== 0) {
     const extra = 3 - remainder;
-    totalTiles += extra;
     const last = plans[plans.length - 1] ?? [];
     if (last.length === 0) {
       last.push(extra);
@@ -61,11 +204,14 @@ export function generateColumns(options: GameOptions): Column[] {
     plans[plans.length - 1] = last;
   }
 
-  const pool = buildTilePool(totalTiles, options.tileSet, rng);
+  return plans;
+}
+
+function fillTopology(plans: number[][], pool: string[], numCols: number): Column[] {
   const columns: Column[] = [];
   let cursor = 0;
 
-  for (let col = 0; col < options.columns; col += 1) {
+  for (let col = 0; col < numCols; col += 1) {
     const heights = plans[col] ?? [];
     const tiles: SheepTile[] = [];
     for (let row = 0; row < heights.length; row += 1) {
@@ -82,11 +228,9 @@ export function generateColumns(options: GameOptions): Column[] {
         cursor += 1;
       }
     }
-    // Sort by layer so z-index aligns with array order
     tiles.sort((a, b) => a.layer - b.layer);
     columns.push(tiles);
   }
-
   return columns;
 }
 
