@@ -67,6 +67,8 @@ Deno.serve(async (req: Request) => {
           last_success_ts_utc: data.error_type ? null : data.ts_utc,
           data_lag_seconds: null,
           error_reason: data.error_type ?? null,
+          funding_rate: data.funding_rate ?? null,
+          open_interest_usd: data.open_interest_usd ?? null,
           ratios: { depth_vs_baseline: depthRatio },
         };
       })

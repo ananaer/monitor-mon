@@ -1,6 +1,8 @@
 import {
   formatNumber,
   formatSignedPercent,
+  formatFundingRate,
+  getFundingRateClass,
   formatTime,
   secondsFromNow,
   getSignClass,
@@ -134,6 +136,8 @@ export function renderVenueTable(overview) {
       <td>${escapeHtml(formatNumber(venue.spread_bps, 2))}</td>
       <td>$${escapeHtml(formatNumber(venue.depth_1pct_total_usdt, 0))}</td>
       <td>${escapeHtml(formatNumber(venue.slip_bps_n2, 2))}</td>
+      <td class="${escapeHtml(getFundingRateClass(venue.funding_rate))}">${escapeHtml(formatFundingRate(venue.funding_rate))}</td>
+      <td>$${escapeHtml(formatNumber(venue.open_interest_usd, 0))}</td>
       <td>
         <span class="${escapeHtml(getRatioClass(ratio))}">
           ${escapeHtml(ratio === null || ratio === undefined ? "-" : `${Number(ratio).toFixed(2)}x`)}
@@ -142,7 +146,7 @@ export function renderVenueTable(overview) {
     </tr>`;
   }).join("");
 
-  els.venueTbody.innerHTML = rowsHtml || '<tr><td colspan="9">暂无数据</td></tr>';
+  els.venueTbody.innerHTML = rowsHtml || '<tr><td colspan="11">暂无数据</td></tr>';
 }
 
 export function renderAlerts(alerts) {

@@ -33,6 +33,21 @@ export function getSignClass(value) {
   return "";
 }
 
+export function formatFundingRate(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "-";
+  const pct = Number(value) * 100;
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toFixed(4)}%`;
+}
+
+export function getFundingRateClass(value) {
+  if (value === null || value === undefined) return "";
+  const pct = Number(value) * 100;
+  if (pct > 0.05) return "up";
+  if (pct < -0.05) return "down";
+  return "";
+}
+
 export function getRatioClass(value) {
   if (value === null || value === undefined) return "ratio-neutral";
   if (value >= 1) return "ratio-good";
