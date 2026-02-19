@@ -41,6 +41,8 @@ const els = {
   formBybit: document.getElementById("form-bybit"),
   formNote: document.getElementById("form-note"),
   formError: document.getElementById("form-error"),
+  lookupBtn: document.getElementById("lookup-btn"),
+  lookupStatus: document.getElementById("lookup-status"),
   confirmModal: document.getElementById("confirm-modal"),
   confirmText: document.getElementById("confirm-text"),
   confirmCancel: document.getElementById("confirm-cancel"),
@@ -137,12 +139,58 @@ function escHtml(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function showLookupStatus(msg, type) {
+  if (!msg) { els.lookupStatus.classList.add("hidden"); return; }
+  els.lookupStatus.textContent = msg;
+  els.lookupStatus.className = `lookup-status ${type}`;
+  els.lookupStatus.classList.remove("hidden");
+}
+
+async function handleLookup() {
+  const token = els.formToken.value.trim();
+  if (!token) {
+    showLookupStatus("请先输入币种名称", "error");
+    return;
+  }
+
+  els.lookupBtn.disabled = true;
+  els.lookupBtn.textContent = "查找中...";
+  showLookupStatus("正在查询各交易所...", "loading");
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/api-lookup?token=${encodeURIComponent(token)}`,
+      { headers: { Authorization: `Bearer ${ANON_KEY}` } }
+    );
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    const found = [];
+    if (data.binance) { els.formBinance.value = data.binance; found.push(`Binance: ${data.binance}`); }
+    if (data.okx) { els.formOkx.value = data.okx; found.push(`OKX: ${data.okx}`); }
+    if (data.bybit) { els.formBybit.value = data.bybit; found.push(`Bybit: ${data.bybit}`); }
+
+    if (found.length > 0) {
+      showLookupStatus(`已找到 ${found.length} 个交易所: ${found.join(" / ")}`, "success");
+    } else {
+      showLookupStatus("未找到对应合约，请手动填写", "error");
+    }
+  } catch (e) {
+    showLookupStatus(`查找失败: ${e.message}`, "error");
+  } finally {
+    els.lookupBtn.disabled = false;
+    els.lookupBtn.textContent = "自动查找";
+  }
+}
+
 function openAddModal() {
   els.modalTitle.textContent = "添加币种";
   els.formId.value = "";
   els.form.reset();
   els.formEnabled.checked = true;
   els.formError.classList.add("hidden");
+  showLookupStatus("", "");
   els.modal.classList.remove("hidden");
   els.formToken.focus();
 }
@@ -159,6 +207,7 @@ function openEditModal(id) {
   els.formBybit.value = token.bybit_symbol || "";
   els.formNote.value = token.note || "";
   els.formError.classList.add("hidden");
+  showLookupStatus("", "");
   els.modal.classList.remove("hidden");
 }
 
@@ -247,6 +296,7 @@ async function handleConfirmDelete() {
   }
 }
 
+els.lookupBtn.addEventListener("click", handleLookup);
 els.addBtn.addEventListener("click", openAddModal);
 els.modalClose.addEventListener("click", closeModal);
 els.modalCancel.addEventListener("click", closeModal);

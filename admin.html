@@ -113,7 +113,11 @@
                 <input type="hidden" id="form-id" value="" />
                 <div class="form-row">
                   <label for="form-token">币种名称 *</label>
-                  <input id="form-token" type="text" placeholder="例如: BTC" required />
+                  <div class="input-with-btn">
+                    <input id="form-token" type="text" placeholder="例如: BTC" required />
+                    <button type="button" id="lookup-btn" class="lookup-btn">自动查找</button>
+                  </div>
+                  <p id="lookup-status" class="lookup-status hidden"></p>
                 </div>
                 <div class="form-row">
                   <label for="form-enabled">启用采集</label>
