@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "MON 多交易所流动性监控",
   "scripts": {
-    "build": "echo 'No build step required'",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "start": "echo 'Start the Python web server: python3 catch-mon/web/server.py'"
   },
-  "dependencies": {}
+  "devDependencies": {
+    "vite": "^7.3.1"
+  }
 }
