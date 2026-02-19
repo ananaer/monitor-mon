@@ -7,6 +7,7 @@ import {
   renderTrendSummary,
   renderAlerts,
   updateRefreshHint,
+  renderTokenSwitcher,
 } from "./render.js";
 
 const DEFAULT_REFRESH_INTERVAL_MS = 15000;
@@ -15,6 +16,18 @@ let loading = false;
 let refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS;
 let nextAutoRefreshAt = Date.now() + DEFAULT_REFRESH_INTERVAL_MS;
 let worker = null;
+let currentToken = "MON";
+let availableTokens = [];
+
+function onTokenSelect(token) {
+  if (token === currentToken) return;
+  currentToken = token;
+  renderTokenSwitcher(availableTokens, currentToken, onTokenSelect);
+  if (loading) return;
+  loading = true;
+  setLoadingState(true);
+  worker.postMessage({ type: "setToken", token });
+}
 
 function createWorker() {
   const workerUrl = new URL("./collector.worker.js", import.meta.url);
@@ -22,6 +35,12 @@ function createWorker() {
 
   worker.onmessage = (e) => {
     const msg = e.data;
+
+    if (msg.type === "tokens") {
+      availableTokens = msg.tokens;
+      renderTokenSwitcher(availableTokens, currentToken, onTokenSelect);
+      return;
+    }
 
     if (msg.type === "status") {
       if (msg.status === "collecting") {

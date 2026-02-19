@@ -19,6 +19,7 @@ Deno.serve(async (req: Request) => {
 
     const url = new URL(req.url);
     const limit = Math.min(Number(url.searchParams.get("limit") ?? "120"), 500);
+    const tokenParam = (url.searchParams.get("token") ?? "MON").toUpperCase().trim();
 
     const venues = ["binance", "okx", "bybit"];
     const byVenue: Record<string, unknown[]> = {};
@@ -29,6 +30,7 @@ Deno.serve(async (req: Request) => {
           .from("metrics_snapshot")
           .select("ts_utc, last_price, spread_bps, depth_1pct_total_usdt, quote_volume_24h")
           .eq("venue", venue)
+          .eq("token", tokenParam)
           .is("error_type", null)
           .order("ts_utc", { ascending: false })
           .limit(limit);

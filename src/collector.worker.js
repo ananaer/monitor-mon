@@ -1,5 +1,6 @@
 let BASE = "";
 let authHeaders = {};
+let currentToken = "MON";
 
 function initConfig(url, key) {
   BASE = `${url}/functions/v1`;
@@ -28,13 +29,24 @@ async function fetchJson(path, timeoutMs = 12000) {
 async function fetchData() {
   self.postMessage({ type: "status", status: "fetching" });
 
+  const tokenQ = `token=${encodeURIComponent(currentToken)}`;
   const [overview, history, alerts] = await Promise.all([
-    fetchJson("/api-overview"),
-    fetchJson("/api-history?limit=120"),
+    fetchJson(`/api-overview?${tokenQ}`),
+    fetchJson(`/api-history?limit=120&${tokenQ}`),
     fetchJson("/api-alerts?limit=50"),
   ]);
 
   self.postMessage({ type: "data", overview, history, alerts });
+}
+
+async function fetchTokenList() {
+  try {
+    const data = await fetchJson("/api-admin/tokens");
+    const tokens = (data.tokens || []).filter((t) => t.enabled).map((t) => t.token);
+    self.postMessage({ type: "tokens", tokens });
+  } catch {
+    self.postMessage({ type: "tokens", tokens: [currentToken] });
+  }
 }
 
 async function runFetch() {
@@ -57,10 +69,17 @@ async function runCollect() {
 }
 
 self.onmessage = (e) => {
-  const { type, supabaseUrl, anonKey } = e.data;
+  const { type, supabaseUrl, anonKey, token } = e.data;
 
   if (type === "init") {
     initConfig(supabaseUrl, anonKey);
+    fetchTokenList();
+    runFetch();
+    return;
+  }
+
+  if (type === "setToken") {
+    currentToken = token;
     runFetch();
     return;
   }

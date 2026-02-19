@@ -17,6 +17,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    const url = new URL(req.url);
+    const tokenParam = (url.searchParams.get("token") ?? "MON").toUpperCase().trim();
+
     const venues = ["binance", "okx", "bybit"];
 
     const venueRows = await Promise.all(
@@ -25,6 +28,7 @@ Deno.serve(async (req: Request) => {
           .from("metrics_snapshot")
           .select("*")
           .eq("venue", venue)
+          .eq("token", tokenParam)
           .order("ts_utc", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -106,7 +110,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({
-        token_hint: "MON",
+        token_hint: tokenParam,
         db_path: "Supabase",
         updated_at_utc: new Date().toISOString(),
         collector,

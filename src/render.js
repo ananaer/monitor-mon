@@ -12,6 +12,7 @@ import {
 import { renderTrendCharts } from "./chart.js";
 
 const els = {
+  tokenSwitcher: document.getElementById("token-switcher"),
   tokenName: document.getElementById("token-name"),
   dbPath: document.getElementById("db-path"),
   updatedAt: document.getElementById("updated-at"),
@@ -192,6 +193,25 @@ export function renderOverview(overview) {
   renderCollectorStatus(overview.collector);
   renderKpis(overview);
   renderVenueTable(overview);
+}
+
+export function renderTokenSwitcher(tokens, activeToken, onSelect) {
+  if (!els.tokenSwitcher) return;
+  if (!tokens || tokens.length <= 1) {
+    els.tokenSwitcher.classList.add("hidden");
+    return;
+  }
+  els.tokenSwitcher.classList.remove("hidden");
+  els.tokenSwitcher.innerHTML = tokens.map((t) => `
+    <button class="token-pill${t === activeToken ? " active" : ""}" data-token="${escapeHtml(t)}">
+      ${escapeHtml(t)}
+    </button>`).join("");
+
+  if (onSelect) {
+    els.tokenSwitcher.querySelectorAll(".token-pill").forEach((btn) => {
+      btn.addEventListener("click", () => onSelect(btn.dataset.token));
+    });
+  }
 }
 
 export function updateRefreshHint(_nextAutoRefreshAt, _refreshIntervalMs) {
