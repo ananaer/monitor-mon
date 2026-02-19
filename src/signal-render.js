@@ -84,12 +84,21 @@ function confidenceBar(pct) {
     </div>`;
 }
 
-function componentRow(label, detail, ok) {
+function scoreChip(score) {
+  const s = Number(score);
+  if (!Number.isFinite(s)) return "";
+  const color = s >= 0.8 ? "#15803d" : s >= 0.5 ? "#d97706" : "#94a3b8";
+  const bg = s >= 0.8 ? "#dcfce7" : s >= 0.5 ? "#fef3c7" : "#f1f5f9";
+  return `<span class="sig-score-chip" style="color:${color};background:${bg}">${s.toFixed(1)}</span>`;
+}
+
+function componentRow(label, detail, ok, score) {
   const dot = ok ? "#15803d" : "#94a3b8";
   return `
     <div class="sig-comp-row">
       <span class="sig-comp-dot" style="background:${escapeHtml(dot)}"></span>
       <span class="sig-comp-label">${escapeHtml(label)}</span>
+      ${scoreChip(score)}
       <span class="sig-comp-detail">${escapeHtml(detail || "-")}</span>
     </div>`;
 }
@@ -105,9 +114,9 @@ function renderSignalCard(item) {
 
   const components = price && oi && exec
     ? `<div class="sig-components">
-        ${componentRow("价格结构", price.detail, price.score >= 0.5)}
-        ${componentRow("衍生品拥挤度", oi.detail, oi.score >= 0.5 && !oi.crowded)}
-        ${componentRow("执行质量", exec.detail, !exec.degraded)}
+        ${componentRow("A 价格结构", price.detail, price.score >= 0.5, price.score)}
+        ${componentRow("B 拥挤度", oi.detail, oi.score >= 0.5 && !oi.crowded, oi.score)}
+        ${componentRow("C 执行质量", exec.detail, !exec.degraded, exec.degraded ? 0 : 1)}
       </div>`
     : "";
 
