@@ -170,6 +170,10 @@
   max-width: 360px;
 }
 
+#confirm-modal {
+  z-index: 200;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;

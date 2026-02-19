@@ -172,9 +172,13 @@ function openConfirmDelete(id, tokenName) {
   els.confirmModal.classList.remove("hidden");
 }
 
+let confirmJustClosed = false;
+
 function closeConfirm() {
   deleteTargetId = null;
   els.confirmModal.classList.add("hidden");
+  confirmJustClosed = true;
+  setTimeout(() => { confirmJustClosed = false; }, 100);
 }
 
 async function toggleEnabled(id, enabled) {
@@ -246,7 +250,7 @@ async function handleConfirmDelete() {
 els.addBtn.addEventListener("click", openAddModal);
 els.modalClose.addEventListener("click", closeModal);
 els.modalCancel.addEventListener("click", closeModal);
-els.modal.addEventListener("click", (e) => { if (e.target === els.modal) closeModal(); });
+els.modal.addEventListener("click", (e) => { if (!confirmJustClosed && e.target === els.modal) closeModal(); });
 els.form.addEventListener("submit", handleFormSubmit);
 els.confirmCancel.addEventListener("click", (e) => { e.stopPropagation(); closeConfirm(); });
 els.confirmOk.addEventListener("click", (e) => { e.stopPropagation(); handleConfirmDelete(); });
