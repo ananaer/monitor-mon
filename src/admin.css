@@ -156,6 +156,10 @@
   padding: 16px;
 }
 
+.modal-overlay.hidden {
+  display: none;
+}
+
 .modal {
   background: var(--panel);
   border: 1px solid var(--line);
