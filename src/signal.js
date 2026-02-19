@@ -136,42 +136,49 @@ function executionQuality(venue, points, baseline) {
   const n2Now = latestVal(points, "slip_bps_n2");
 
   const details = [];
-  let degraded = false;
+  let badCount = 0;
+  let hasData = false;
 
   if (spreadSeries.length >= 6) {
+    hasData = true;
     const spreadBase = mean(spreadSeries.slice(0, Math.max(1, spreadSeries.length - 6)));
-    if (spreadBase && spreadNow !== null && spreadNow > spreadBase * 1.5) {
+    if (spreadBase && spreadNow !== null && spreadNow > spreadBase * 2.0) {
       details.push(`价差扩大 ${spreadNow.toFixed(2)} bps`);
-      degraded = true;
+      badCount++;
     } else if (spreadNow !== null) {
       details.push(`价差 ${spreadNow.toFixed(2)} bps`);
     }
   }
 
   if (depthSeries.length >= 6) {
+    hasData = true;
     const depthBase = mean(depthSeries.slice(0, Math.max(1, depthSeries.length - 6)));
-    if (depthBase && depthNow !== null && depthNow < depthBase * 0.7) {
+    if (depthBase && depthNow !== null && depthNow < depthBase * 0.5) {
       details.push(`深度萎缩 $${(depthNow / 1000).toFixed(0)}k`);
-      degraded = true;
+      badCount++;
     } else if (depthNow !== null) {
       details.push(`深度 $${(depthNow / 1000).toFixed(0)}k`);
     }
   }
 
   if (n2Series.length >= 6) {
+    hasData = true;
     const n2Base = mean(n2Series.slice(0, Math.max(1, n2Series.length - 6)));
-    if (n2Base && n2Now !== null && n2Now > n2Base * 1.5) {
+    if (n2Base && n2Now !== null && n2Now > n2Base * 2.0) {
       details.push(`N2 抬升 ${n2Now.toFixed(2)} bps`);
-      degraded = true;
+      badCount++;
     } else if (n2Now !== null) {
       details.push(`N2 ${n2Now.toFixed(2)} bps`);
     }
   }
 
-  if (details.length === 0) return { score: 0, detail: "执行质量数据不足", degraded: true };
+  if (!hasData) return { score: 1, detail: "执行数据不足，默认通过", degraded: false };
+
+  const degraded = badCount >= 2;
+  const score = badCount === 0 ? 1 : badCount === 1 ? 0.5 : 0;
 
   return {
-    score: degraded ? 0 : 1,
+    score,
     detail: details.join(" · "),
     degraded,
     spreadNow,
