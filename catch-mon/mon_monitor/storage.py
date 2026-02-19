@@ -103,6 +103,12 @@ CREATE TABLE IF NOT EXISTS alert_counters (
     last_ts_utc TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS runtime_state (
+    state_key TEXT PRIMARY KEY,
+    state_value TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -429,3 +435,37 @@ class Storage:
                 record = dict(zip(columns, list(row)))
                 f.write(json.dumps(record, default=str, ensure_ascii=False) + "\n")
         logger.info("已导出 %s 到 %s（%d 行）", table, output_path, len(rows))
+
+    def set_runtime_state(self, state_key: str, state_value: Optional[str]) -> None:
+        """写入运行时状态（upsert）。"""
+        self.conn.execute(
+            """
+            INSERT INTO runtime_state (state_key, state_value, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(state_key) DO UPDATE SET
+                state_value = excluded.state_value,
+                updated_at = datetime('now')
+            """,
+            (state_key, state_value),
+        )
+        self.conn.commit()
+
+    def set_runtime_states(self, states: dict[str, Optional[str]]) -> None:
+        """批量写入运行时状态。"""
+        for key, value in states.items():
+            self.conn.execute(
+                """
+                INSERT INTO runtime_state (state_key, state_value, updated_at)
+                VALUES (?, ?, datetime('now'))
+                ON CONFLICT(state_key) DO UPDATE SET
+                    state_value = excluded.state_value,
+                    updated_at = datetime('now')
+                """,
+                (key, value),
+            )
+        self.conn.commit()
+
+    def get_runtime_states(self) -> dict[str, str]:
+        """读取全部运行时状态。"""
+        cursor = self.conn.execute("SELECT state_key, state_value FROM runtime_state")
+        return {row["state_key"]: row["state_value"] for row in cursor.fetchall()}

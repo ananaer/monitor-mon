@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MON 监控面板</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">MONITORING DASHBOARD</p>
+          <h1><span id="token-name">MON</span> 多交易所流动性监控</h1>
+          <p class="subline">
+            数据来自 SQLite:
+            <code id="db-path">-</code>
+          </p>
+          <p class="subline">最近更新: <span id="updated-at">-</span></p>
+          <p class="subline">
+            采集器状态: <strong id="collector-status-text">-</strong>
+            <span id="collector-status-extra"></span>
+          </p>
+          <p id="collector-error" class="subline danger hidden"></p>
+        </div>
+        <div class="actions">
+          <button id="refresh-btn" class="refresh-btn">立即刷新</button>
+          <p id="refresh-hint" class="refresh-hint">自动刷新：15 秒</p>
+          <p id="refresh-status" class="refresh-status status-running">状态：运行中</p>
+        </div>
+      </header>
+
+      <p id="error-box" class="error hidden"></p>
+
+      <section class="kpi-grid">
+        <article class="kpi-card">
+          <p class="kpi-label">交易所数量</p>
+          <p id="kpi-venue-count" class="kpi-value">0</p>
+          <p class="kpi-foot">活跃: <span id="kpi-online-count">0</span></p>
+        </article>
+        <article class="kpi-card">
+          <p class="kpi-label">24h 告警</p>
+          <p id="kpi-alerts-24h" class="kpi-value">0</p>
+          <p class="kpi-foot danger">critical: <span id="kpi-critical-24h">0</span></p>
+        </article>
+        <article class="kpi-card">
+          <p class="kpi-label">平均价差 (bps)</p>
+          <p id="kpi-avg-spread" class="kpi-value">-</p>
+          <p class="kpi-foot">越低越好</p>
+        </article>
+        <article class="kpi-card">
+          <p class="kpi-label">总深度 (1%)</p>
+          <p id="kpi-total-depth" class="kpi-value">-</p>
+          <p class="kpi-foot">bid + ask</p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>交易所状态</h2>
+          <span class="muted">最新数据</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Venue</th>
+                <th>状态</th>
+                <th>价格</th>
+                <th>1h%</th>
+                <th>24h量</th>
+                <th>价差</th>
+                <th>1%深度</th>
+                <th>冲击成本N2</th>
+                <th>深度/基线</th>
+              </tr>
+            </thead>
+            <tbody id="venue-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>趋势摘要</h2>
+          <span class="muted">最近 120 个采样点</span>
+        </div>
+        <div id="trend-summary" class="muted">加载中...</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>最新告警</h2>
+          <span id="alert-count" class="muted">最近 0 条</span>
+        </div>
+        <div id="alert-empty" class="empty">暂无告警</div>
+        <ul id="alert-list" class="alert-list hidden"></ul>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

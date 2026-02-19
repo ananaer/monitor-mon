@@ -1,6 +1,6 @@
 token_symbol: "MON"
 timezone: "Asia/Tokyo"
-schedule_seconds: 300
+schedule_seconds: 60
 baseline_days: 14
 orderbook_levels: 100
 notional_1: 10000
@@ -15,15 +15,18 @@ venues:
     market: "swap"
     symbol: "MON-USDT-SWAP"
     base_url: "https://www.okx.com"
+    notional_2: 50000
   bybit:
     market: "linear"
     symbol: "MONUSDT"
     base_url: "https://api.bytick.com"
+    notional_2: 50000
 
 thresholds:
   depth_drop_mult: 0.7
   spread_mult: 2.0
   slip_mult: 2.0
   volume_spike_mult: 2.0
+  insufficient_liq_gap_pct: 50.0
 
 dedupe_window_seconds: 3600

@@ -118,8 +118,10 @@ def _make_baseline(
     spread_bps=5.0,
     slip_n2=10.0,
     volume_mean=500000.0,
+    warming_up=False,
+    sample_count=100,
 ) -> BaselineValues:
-    """构造测试用 baseline。"""
+    """构造测试用 baseline。默认 warming_up=False 表示基线已就绪。"""
     return BaselineValues(
         venue="binance",
         symbol="MON/USDT:USDT",
@@ -128,6 +130,8 @@ def _make_baseline(
         spread_bps_median=spread_bps,
         slip_bps_n2_median=slip_n2,
         volume_24h_mean_7d=volume_mean,
+        sample_count=sample_count,
+        warming_up=warming_up,
     )
 
 
@@ -211,10 +215,10 @@ class TestInsufficientLiquidity:
 
     def test_immediate_trigger(self, config):
         """流动性不足立即触发，无需连续确认。"""
-        # 缺口 30000 / 100000 = 30% > 20%
+        # 缺口 60000 / 100000 = 60% > 50% (insufficient_liq_gap_pct)
         snap = _make_snapshot(
             insuf_liq=True,
-            shortfall=30000.0,
+            shortfall=60000.0,
             target_notional=100000.0,
         )
         alert = check_insufficient_liquidity(snap, config)
@@ -223,11 +227,11 @@ class TestInsufficientLiquidity:
         assert alert.severity == "critical"
 
     def test_small_gap_no_trigger(self, config):
-        """缺口小于 20% 不触发。"""
-        # 缺口 10000 / 100000 = 10% < 20%
+        """缺口小于阈值不触发。"""
+        # 缺口 30000 / 100000 = 30% < 50%
         snap = _make_snapshot(
             insuf_liq=True,
-            shortfall=10000.0,
+            shortfall=30000.0,
             target_notional=100000.0,
         )
         alert = check_insufficient_liquidity(snap, config)

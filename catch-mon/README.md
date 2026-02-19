@@ -62,6 +62,8 @@ thresholds:
   volume_spike_mult: 2.0     # 量价异常阈值
 
 dedupe_window_seconds: 3600  # 同类告警去重窗口（秒）
+collect_workers: 3           # 并发采集 worker 数
+venue_timeout_seconds: 60    # 单交易所采集超时（秒）
 ```
 
 ### base_url 说明
@@ -80,29 +82,80 @@ dedupe_window_seconds: 3600  # 同类告警去重窗口（秒）
 source .venv/bin/activate
 
 # 单次采集
-python -m mon_monitor.cli --mode run_once
+python3 -m mon_monitor.cli --mode run_once
 
 # 守护模式（持续循环，Ctrl+C 优雅退出）
-python -m mon_monitor.cli --mode run_daemon
+python3 -m mon_monitor.cli --mode run_daemon
 
 # 使用自定义配置
-python -m mon_monitor.cli --mode run_once --config my_config.yaml
+python3 -m mon_monitor.cli --mode run_once --config my_config.yaml
 
 # 详细日志
-python -m mon_monitor.cli --mode run_once --verbose
+python3 -m mon_monitor.cli --mode run_once --verbose
+
+# 如需保留每轮 JSON 快照（默认关闭）
+python3 -m mon_monitor.cli --mode run_once --write-json-output --output-dir data/output
 
 # 导出数据
-python -m mon_monitor.cli --export csv --export-table metrics_snapshot
-python -m mon_monitor.cli --export jsonl --export-table alerts
+python3 -m mon_monitor.cli --export csv --export-table metrics_snapshot
+python3 -m mon_monitor.cli --export jsonl --export-table alerts
 ```
+
+### 一键启动后端（带日志落盘）
+
+```bash
+./scripts/start_backend.sh
+```
+
+- 采集守护进程日志：`data/logs/collector.log`
+- Web 服务日志：`data/logs/web.log`
+- 启动 stdout/stderr 日志：`data/logs/collector.stdout.log`、`data/logs/web.stdout.log`
+- PID 文件：`data/run/collector.pid`、`data/run/web.pid`
+
+停止：
+
+```bash
+./scripts/stop_backend.sh
+```
+
+查看状态与日志尾部：
+
+```bash
+./scripts/status_backend.sh
+```
+
+## 前端监控页面（SQLite 实时读取）
+
+项目内置了一个轻量前端监控页，数据直接从 `data/mon_monitor.db` 查询，不依赖额外后端框架。
+
+```bash
+source .venv/bin/activate
+python3 web/server.py --host 127.0.0.1 --port 8008
+```
+
+启动后打开：
+
+- `http://127.0.0.1:8008/`：监控面板
+- `http://127.0.0.1:8008/api/overview`：总览接口
+- `http://127.0.0.1:8008/api/history?limit=120`：历史趋势接口
+- `http://127.0.0.1:8008/api/alerts?limit=50`：告警接口
+- `http://127.0.0.1:8008/api/runtime`：采集器运行状态（daemon/cycle/last_success/cycle_seq）
+- `http://127.0.0.1:8008/api/health`：服务健康状态（含 collector 状态）
 
 ## 输出
 
 每轮采集输出：
 
-1. **JSON 文件**：写入 `data/output/` 目录，包含完整采样数据与告警
+1. **SQLite 数据库（默认）**：写入 `data/mon_monitor.db`，持久化所有历史数据
 2. **stdout 摘要**：可读的市场概况与告警汇总
-3. **SQLite 数据库**：`data/mon_monitor.db`，持久化所有历史数据
+3. **JSON 文件（可选）**：仅在传入 `--write-json-output` 时写入 `data/output/`
+4. **运行时状态**：写入 `runtime_state` 表（采集器 daemon 状态、最近成功时间、最近错误）
+
+### 当前态语义（前端卡片）
+
+- 前端“当前值”只取每个 venue 最新一条快照，不回填历史成功价格。
+- 当当前轮 `missing_market=1` 或关键字段缺失时，状态显示 `down/degraded`，价格显示 `-`。
+- 当快照超过阈值未更新时，状态显示 `stale`（陈旧数据）。
 
 ### JSON 结构
 
@@ -132,6 +185,18 @@ python -m mon_monitor.cli --export jsonl --export-table alerts
   ]
 }
 ```
+
+## OKX 合约与接口说明
+
+- 本项目监控 OKX 永续合约使用 `instType=SWAP`，`instId=MON-USDT-SWAP`。
+- 采集时会优先尝试 `app.okx.com`，并自动回退到其他官方域名，降低单域名不可达导致的误判。
+
+官方文档：
+
+- [OKX - Get instruments](https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments)
+- [OKX - Get ticker](https://www.okx.com/docs-v5/en/#public-data-rest-api-get-ticker)
+- [OKX - Get order book](https://www.okx.com/docs-v5/en/#public-data-rest-api-get-order-book)
+- [OKX my 入口与生产域名说明](https://my.okx.com/docs-v5/en/#overview-production-trading-services)
 
 ## 告警规则
 

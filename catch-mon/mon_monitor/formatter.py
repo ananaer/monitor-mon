@@ -13,18 +13,46 @@ from mon_monitor.models import Alert, BaselineValues, MonitorOutput, VenueSnapsh
 
 
 def _safe_value(val: Any, fmt: str = ".2f") -> str:
-    """安全格式化数值，None 时返回 'missing'。"""
+    """安全格式化数值，None 时返回 '-'。"""
     if val is None:
-        return "missing"
+        return "-"
     if isinstance(val, float):
         return f"{val:{fmt}}"
     return str(val)
 
 
+def _fmt_usd(val, decimals=0) -> str:
+    if val is None:
+        return "-"
+    if val >= 1_000_000:
+        return f"${val / 1_000_000:,.{max(decimals, 1)}f}M"
+    if val >= 1_000:
+        return f"${val / 1_000:,.{max(decimals, 1)}f}K"
+    return f"${val:,.{decimals}f}"
+
+
+def _fmt_pct(val) -> str:
+    if val is None:
+        return "-"
+    sign = "+" if val >= 0 else ""
+    return f"{sign}{val:.2f}%"
+
+
+def _fmt_bps(val) -> str:
+    if val is None:
+        return "-"
+    return f"{val:.1f}bp"
+
+
+def _fmt_funding(val) -> str:
+    if val is None:
+        return "-"
+    return f"{val * 100:.4f}%"
+
+
 def _snapshot_to_dict(snapshot: VenueSnapshot) -> dict:
     """将 VenueSnapshot 转为可序列化的 dict（移除大体积原始数据）。"""
     d = asdict(snapshot)
-    # 移除 raw_json 中的大体积数据，保留摘要
     if "raw_json" in d:
         raw = d["raw_json"]
         raw.pop("orderbook_raw", None)
@@ -57,6 +85,34 @@ def output_to_json(output: MonitorOutput) -> str:
     return json.dumps(d, indent=2, default=str, ensure_ascii=False)
 
 
+def _get_slip_n2_max(snap: VenueSnapshot):
+    """取 n2 滑点 max(buy, sell)。"""
+    if not snap.orderbook:
+        return None
+    vals = []
+    if snap.orderbook.impact_buy_n2 and snap.orderbook.impact_buy_n2.slip_bps is not None:
+        vals.append(snap.orderbook.impact_buy_n2.slip_bps)
+    if snap.orderbook.impact_sell_n2 and snap.orderbook.impact_sell_n2.slip_bps is not None:
+        vals.append(snap.orderbook.impact_sell_n2.slip_bps)
+    return max(vals) if vals else None
+
+
+def _get_depth_total(snap: VenueSnapshot):
+    if not snap.orderbook:
+        return None
+    bid = snap.orderbook.depth_1pct_usdt_bid
+    ask = snap.orderbook.depth_1pct_usdt_ask
+    if bid is not None and ask is not None:
+        return bid + ask
+    return None
+
+
+def _get_oi(snap: VenueSnapshot):
+    if not snap.open_interest:
+        return None
+    return snap.open_interest.open_interest_value_usdt
+
+
 def print_summary(
     snapshots: dict[str, VenueSnapshot],
     baselines: dict[str, BaselineValues],
@@ -64,89 +120,224 @@ def print_summary(
     tz_name: str = "Asia/Tokyo",
 ):
     """
-    打印 human-readable stdout 摘要。
+    打印用户友好的表格化摘要。
+    三家交易所横向对比，一目了然。
     """
     tz = ZoneInfo(tz_name)
     now = datetime.now(tz)
-    print(f"\n{'='*60}")
-    print(f"  MON 公开数据监控 — {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-    print(f"{'='*60}")
 
-    for venue_name, snap in snapshots.items():
-        print(f"\n--- {venue_name.upper()} ---")
+    W = 72
+    venues = list(snapshots.keys())
+    COL = 16
 
+    def line(char="─"):
+        return char * W
+
+    def header_bar():
+        left = "  MON Monitor"
+        right = now.strftime("%Y-%m-%d %H:%M:%S %Z") + "  "
+        gap = W - len(left) - len(right)
+        return left + " " * max(gap, 2) + right
+
+    def row(label: str, values: list[str]):
+        """生成一行：label 固定宽度 + 各 venue 列。"""
+        cells = f"  {label:<18}"
+        for v in values:
+            cells += f"{v:>{COL}}"
+        return cells
+
+    print()
+    print(f"  {line('━')}")
+    print(header_bar())
+    print(f"  {line('━')}")
+
+    # venue header
+    venue_labels = []
+    for v in venues:
+        snap = snapshots[v]
         if snap.missing_market:
-            print(f"  状态: missing_market")
-            if snap.errors:
-                for e in snap.errors:
-                    print(f"  错误: {e}")
-            continue
+            venue_labels.append(f"{v.upper()}*")
+        else:
+            venue_labels.append(v.upper())
+    print(row("", venue_labels))
+    print(f"  {line()}")
 
-        # Price
-        price = "missing"
-        if snap.ticker and snap.ticker.last_price is not None:
-            price = f"{snap.ticker.last_price:.4f}"
-        print(f"  Price: {price}")
+    # Price
+    prices = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            prices.append("N/A")
+        elif snap.ticker and snap.ticker.last_price is not None:
+            prices.append(f"${snap.ticker.last_price:.5f}")
+        else:
+            prices.append("-")
+    print(row("Price", prices))
 
-        # Spread
-        spread = "missing"
-        if snap.orderbook and snap.orderbook.spread_bps is not None:
-            spread = f"{snap.orderbook.spread_bps:.2f} bps"
-        print(f"  Spread: {spread}")
+    # 24h Change
+    changes = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            changes.append("N/A")
+        elif snap.ticker:
+            changes.append(_fmt_pct(snap.ticker.pct_change_24h))
+        else:
+            changes.append("-")
+    print(row("24h Change", changes))
 
-        # Depth 1%
-        depth_total = "missing"
-        if snap.orderbook:
-            bid = snap.orderbook.depth_1pct_usdt_bid
-            ask = snap.orderbook.depth_1pct_usdt_ask
-            if bid is not None and ask is not None:
-                depth_total = f"{bid + ask:,.0f} USDT (bid={bid:,.0f} ask={ask:,.0f})"
-        print(f"  Depth 1%: {depth_total}")
+    # 24h Volume
+    vols = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            vols.append("N/A")
+        elif snap.ticker:
+            vols.append(_fmt_usd(snap.ticker.quote_volume_24h))
+        else:
+            vols.append("-")
+    print(row("24h Volume", vols))
 
-        # Slip N2
-        slip = "missing"
-        if snap.orderbook:
-            vals = []
-            if snap.orderbook.impact_buy_n2 and snap.orderbook.impact_buy_n2.slip_bps is not None:
-                vals.append(snap.orderbook.impact_buy_n2.slip_bps)
-            if snap.orderbook.impact_sell_n2 and snap.orderbook.impact_sell_n2.slip_bps is not None:
-                vals.append(snap.orderbook.impact_sell_n2.slip_bps)
-            if vals:
-                slip = f"max {max(vals):.2f} bps"
-        print(f"  Slip N2 (100k): {slip}")
+    print(f"  {line()}")
 
-        # Funding
-        funding = "missing"
-        if snap.funding and snap.funding.funding_rate is not None:
-            funding = f"{snap.funding.funding_rate * 100:.4f}%"
-        print(f"  Funding: {funding}")
+    # Spread
+    spreads = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            spreads.append("N/A")
+        elif snap.orderbook:
+            spreads.append(_fmt_bps(snap.orderbook.spread_bps))
+        else:
+            spreads.append("-")
+    print(row("Spread", spreads))
 
-        # OI
-        oi = "missing"
-        if snap.open_interest:
-            if snap.open_interest.open_interest_value_usdt is not None:
-                oi = f"{snap.open_interest.open_interest_value_usdt:,.0f} USDT"
-            elif snap.open_interest.open_interest_amount_contracts is not None:
-                oi = f"{snap.open_interest.open_interest_amount_contracts:,.0f} contracts"
-        print(f"  OI: {oi}")
+    # Depth 1%
+    depths = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            depths.append("N/A")
+        else:
+            depths.append(_fmt_usd(_get_depth_total(snap)))
+    print(row("Depth 1%", depths))
 
-        # 错误
-        if snap.errors:
-            print(f"  ⚠ 部分采集失败: {', '.join(snap.errors)}")
+    # Depth 2%
+    depths2 = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            depths2.append("N/A")
+        elif snap.orderbook:
+            b2 = snap.orderbook.depth_2pct_usdt_bid
+            a2 = snap.orderbook.depth_2pct_usdt_ask
+            if b2 is not None and a2 is not None:
+                depths2.append(_fmt_usd(b2 + a2))
+            else:
+                depths2.append("-")
+        else:
+            depths2.append("-")
+    print(row("Depth 2%", depths2))
 
-    # 告警摘要
-    print(f"\n--- 告警 ---")
+    # Slip 10K
+    slips1 = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            slips1.append("N/A")
+        elif snap.orderbook and snap.orderbook.impact_buy_n1:
+            slips1.append(_fmt_bps(snap.orderbook.impact_buy_n1.slip_bps))
+        else:
+            slips1.append("-")
+    print(row("Slip 10K buy", slips1))
+
+    # Slip 100K
+    slips2 = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            slips2.append("N/A")
+        else:
+            slips2.append(_fmt_bps(_get_slip_n2_max(snap)))
+    print(row("Slip 100K max", slips2))
+
+    print(f"  {line()}")
+
+    # Funding
+    fundings = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            fundings.append("N/A")
+        elif snap.funding:
+            fundings.append(_fmt_funding(snap.funding.funding_rate))
+        else:
+            fundings.append("-")
+    print(row("Funding Rate", fundings))
+
+    # OI
+    ois = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            ois.append("N/A")
+        else:
+            ois.append(_fmt_usd(_get_oi(snap)))
+    print(row("Open Interest", ois))
+
+    # Volatility
+    vols_rv = []
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            vols_rv.append("N/A")
+        elif snap.ohlcv and snap.ohlcv.realized_vol_24h is not None:
+            vols_rv.append(f"{snap.ohlcv.realized_vol_24h * 100:.2f}%")
+        else:
+            vols_rv.append("-")
+    print(row("RVol 24h", vols_rv))
+
+    # Baseline status
+    bl_status = []
+    for v in venues:
+        bl = baselines.get(v)
+        if bl is None:
+            bl_status.append("-")
+        elif bl.warming_up:
+            bl_status.append(f"warmup({bl.sample_count})")
+        else:
+            bl_status.append(f"ok({bl.sample_count})")
+    print(row("Baseline", bl_status))
+
+    print(f"  {line()}")
+
+    # Errors
+    has_errors = False
+    for v in venues:
+        snap = snapshots[v]
+        if snap.missing_market:
+            print(f"  * {v.upper()}: missing_market (symbol 不存在或网络不可达)")
+            has_errors = True
+        elif snap.errors:
+            print(f"  ! {v.upper()}: {', '.join(snap.errors)}")
+            has_errors = True
+
+    if has_errors:
+        print(f"  {line()}")
+
+    # Alerts
     if not alerts:
-        print("  本轮无新增告警")
+        print("  Alerts: 0 (all clear)")
     else:
-        print(f"  新增告警: {len(alerts)} 条")
-        type_counts: dict[str, int] = {}
+        severity_icon = {
+            "critical": "!!",
+            "warn": " !",
+            "info": " i",
+        }
+        print(f"  Alerts: {len(alerts)}")
         for a in alerts:
-            type_counts[a.alert_type] = type_counts.get(a.alert_type, 0) + 1
-        for atype, count in type_counts.items():
-            print(f"    {atype}: {count}")
-        for a in alerts:
-            severity_tag = f"[{a.severity.upper()}]"
-            print(f"  {severity_tag} {a.venue}: {a.message}")
+            icon = severity_icon.get(a.severity, "  ")
+            print(f"  [{icon}] {a.venue:>8} | {a.alert_type}: {a.message}")
 
-    print(f"{'='*60}\n")
+    print(f"  {line('━')}")
+    print()

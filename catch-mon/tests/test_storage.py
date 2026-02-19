@@ -101,6 +101,7 @@ class TestStorageSchema:
         assert "baselines" in tables
         assert "alerts" in tables
         assert "alert_counters" in tables
+        assert "runtime_state" in tables
 
 
 class TestSnapshotCRUD:
@@ -255,3 +256,23 @@ class TestExport:
         assert len(lines) >= 1
         record = json.loads(lines[0])
         assert record["venue"] == "binance"
+
+
+class TestRuntimeState:
+    """运行时状态读写测试。"""
+
+    def test_set_and_get_runtime_state(self, storage):
+        storage.set_runtime_state("collector.last_cycle_status", "running")
+        states = storage.get_runtime_states()
+        assert states["collector.last_cycle_status"] == "running"
+
+    def test_set_runtime_states_bulk(self, storage):
+        storage.set_runtime_states(
+            {
+                "collector.last_cycle_status": "ok",
+                "collector.last_success_utc": "2026-02-19T00:00:00+00:00",
+            }
+        )
+        states = storage.get_runtime_states()
+        assert states["collector.last_cycle_status"] == "ok"
+        assert states["collector.last_success_utc"] == "2026-02-19T00:00:00+00:00"

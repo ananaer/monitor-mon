@@ -35,23 +35,50 @@ def _signal_handler(signum, frame):
     logger.info("收到退出信号 (%s)，将在当前轮次结束后退出", signum)
 
 
-def setup_logging(verbose: bool = False):
+def setup_logging(verbose: bool = False, log_file: str | None = None):
     """配置日志。"""
     level = logging.DEBUG if verbose else logging.INFO
+    handlers = [logging.StreamHandler(sys.stdout)]
+    if log_file:
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(log_path, encoding="utf-8"))
     logging.basicConfig(
         level=level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=handlers,
+        force=True,
     )
 
 
-def run_once_cycle(config: MonitorConfig, storage: Storage, output_dir: str):
+def run_once_cycle(
+    config: MonitorConfig,
+    storage: Storage,
+    output_dir: str,
+    write_json_output: bool = False,
+):
     """
     执行一轮完整的监控循环。
     返回本轮告警列表。
     """
     ts = datetime.now(timezone.utc).isoformat()
+    started_at = time.perf_counter()
+    current_states = storage.get_runtime_states()
+    try:
+        cycle_seq = int(current_states.get("collector.cycle_seq", "0")) + 1
+    except ValueError:
+        cycle_seq = 1
     logger.info("=== 开始采集轮次 %s ===", ts)
+    storage.set_runtime_states(
+        {
+            "collector.cycle_seq": str(cycle_seq),
+            "collector.last_cycle_start_utc": ts,
+            "collector.last_cycle_status": "running",
+            "collector.last_error": "",
+            "collector.heartbeat_utc": ts,
+        }
+    )
 
     # 1. 采集数据
     snapshots = collect_all(config)
@@ -88,40 +115,96 @@ def run_once_cycle(config: MonitorConfig, storage: Storage, output_dir: str):
 
     # 6. 输出
     output = build_output(config.token_symbol, snapshots, baselines, all_alerts)
-    json_str = output_to_json(output)
-
-    # 写入 JSON 文件
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    ts_safe = ts.replace(":", "-").replace("+", "_")
-    json_file = output_path / f"mon_snapshot_{ts_safe}.json"
-    with open(json_file, "w", encoding="utf-8") as f:
-        f.write(json_str)
-    logger.info("JSON 输出已写入: %s", json_file)
+    if write_json_output:
+        json_str = output_to_json(output)
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        ts_safe = ts.replace(":", "-").replace("+", "_")
+        json_file = output_path / f"mon_snapshot_{ts_safe}.json"
+        with open(json_file, "w", encoding="utf-8") as f:
+            f.write(json_str)
+        logger.info("JSON 输出已写入: %s", json_file)
 
     # 打印摘要
     print_summary(snapshots, baselines, all_alerts, config.timezone)
 
+    done_ts = datetime.now(timezone.utc).isoformat()
+    venue_total = len(snapshots)
+    venue_down = sum(1 for s in snapshots.values() if s.missing_market)
+    venue_ok = max(0, venue_total - venue_down)
+    storage.set_runtime_states(
+        {
+            "collector.last_cycle_end_utc": done_ts,
+            "collector.last_cycle_status": "ok",
+            "collector.last_success_utc": done_ts,
+            "collector.last_alert_count": str(len(all_alerts)),
+            "collector.last_cycle_duration_ms": str(
+                int((time.perf_counter() - started_at) * 1000)
+            ),
+            "collector.last_cycle_venues_total": str(venue_total),
+            "collector.last_cycle_venues_ok": str(venue_ok),
+            "collector.last_cycle_venues_down": str(venue_down),
+            "collector.heartbeat_utc": done_ts,
+        }
+    )
     logger.info("=== 轮次完成 ===")
     return all_alerts
 
 
-def run_once(config: MonitorConfig, db_path: str, output_dir: str):
+def run_once(
+    config: MonitorConfig,
+    db_path: str,
+    output_dir: str,
+    write_json_output: bool = False,
+):
     """单次运行模式。"""
     storage = Storage(db_path)
     try:
-        run_once_cycle(config, storage, output_dir)
+        storage.set_runtime_states(
+            {
+                "collector.mode": "run_once",
+                "collector.daemon_status": "stopped",
+            }
+        )
+        run_once_cycle(
+            config,
+            storage,
+            output_dir,
+            write_json_output=write_json_output,
+        )
+    except Exception as e:
+        storage.set_runtime_states(
+            {
+                "collector.last_cycle_end_utc": datetime.now(timezone.utc).isoformat(),
+                "collector.last_cycle_status": "error",
+                "collector.last_error": str(e),
+            }
+        )
+        raise
     finally:
         storage.close()
 
 
-def run_daemon(config: MonitorConfig, db_path: str, output_dir: str):
+def run_daemon(
+    config: MonitorConfig,
+    db_path: str,
+    output_dir: str,
+    write_json_output: bool = False,
+):
     """守护进程模式。循环执行，异常不退出。"""
     global _shutdown
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
     storage = Storage(db_path)
+    storage.set_runtime_states(
+        {
+            "collector.mode": "run_daemon",
+            "collector.daemon_status": "running",
+            "collector.schedule_seconds": str(config.schedule_seconds),
+            "collector.started_at_utc": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     logger.info(
         "守护模式启动，间隔 %d 秒，Ctrl+C 退出",
         config.schedule_seconds,
@@ -130,9 +213,21 @@ def run_daemon(config: MonitorConfig, db_path: str, output_dir: str):
     try:
         while not _shutdown:
             try:
-                run_once_cycle(config, storage, output_dir)
+                run_once_cycle(
+                    config,
+                    storage,
+                    output_dir,
+                    write_json_output=write_json_output,
+                )
             except Exception as e:
                 logger.error("本轮执行异常（不退出）: %s", e, exc_info=True)
+                storage.set_runtime_states(
+                    {
+                        "collector.last_cycle_end_utc": datetime.now(timezone.utc).isoformat(),
+                        "collector.last_cycle_status": "error",
+                        "collector.last_error": str(e),
+                    }
+                )
 
             # 等待下一轮
             logger.info(
@@ -143,6 +238,12 @@ def run_daemon(config: MonitorConfig, db_path: str, output_dir: str):
                     break
                 time.sleep(1)
     finally:
+        storage.set_runtime_states(
+            {
+                "collector.daemon_status": "stopped",
+                "collector.stopped_at_utc": datetime.now(timezone.utc).isoformat(),
+            }
+        )
         storage.close()
         logger.info("守护模式已退出")
 
@@ -170,12 +271,22 @@ def main():
     parser.add_argument(
         "--output-dir",
         default="data/output",
-        help="JSON 输出目录 (默认: data/output)",
+        help="JSON 输出目录（仅 --write-json-output 开启时生效）",
+    )
+    parser.add_argument(
+        "--write-json-output",
+        action="store_true",
+        help="启用每轮 JSON 快照输出到 --output-dir（默认关闭，仅写 SQLite）",
     )
     parser.add_argument(
         "--verbose",
         action="store_true",
         help="启用详细日志",
+    )
+    parser.add_argument(
+        "--log-file",
+        default="data/logs/collector.log",
+        help="日志文件路径 (默认: data/logs/collector.log)",
     )
     parser.add_argument(
         "--export",
@@ -195,7 +306,7 @@ def main():
     )
 
     args = parser.parse_args()
-    setup_logging(args.verbose)
+    setup_logging(args.verbose, args.log_file)
 
     config = load_config(args.config)
 
@@ -213,9 +324,19 @@ def main():
         return
 
     if args.mode == "run_once":
-        run_once(config, args.db_path, args.output_dir)
+        run_once(
+            config,
+            args.db_path,
+            args.output_dir,
+            write_json_output=args.write_json_output,
+        )
     elif args.mode == "run_daemon":
-        run_daemon(config, args.db_path, args.output_dir)
+        run_daemon(
+            config,
+            args.db_path,
+            args.output_dir,
+            write_json_output=args.write_json_output,
+        )
 
 
 if __name__ == "__main__":

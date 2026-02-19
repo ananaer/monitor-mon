@@ -15,6 +15,8 @@ class VenueConfig:
     market: str
     symbol: str
     base_url: str = ""
+    notional_1: Optional[float] = None
+    notional_2: Optional[float] = None
 
 
 @dataclass
@@ -23,6 +25,7 @@ class ThresholdsConfig:
     spread_mult: float = 2.0
     slip_mult: float = 2.0
     volume_spike_mult: float = 2.0
+    insufficient_liq_gap_pct: float = 50.0
 
 
 @dataclass
@@ -37,6 +40,8 @@ class MonitorConfig:
     venues: dict[str, VenueConfig] = field(default_factory=dict)
     thresholds: ThresholdsConfig = field(default_factory=ThresholdsConfig)
     dedupe_window_seconds: int = 3600
+    collect_workers: int = 3
+    venue_timeout_seconds: int = 60
 
 
 DEFAULT_BASE_URLS = {
@@ -71,6 +76,8 @@ def load_config(config_path: Optional[str] = None) -> MonitorConfig:
             market=venue_data["market"],
             symbol=venue_data["symbol"],
             base_url=venue_data.get("base_url", default_url),
+            notional_1=venue_data.get("notional_1"),
+            notional_2=venue_data.get("notional_2"),
         )
 
     thresholds_data = raw.get("thresholds", {})
@@ -79,6 +86,7 @@ def load_config(config_path: Optional[str] = None) -> MonitorConfig:
         spread_mult=thresholds_data.get("spread_mult", 2.0),
         slip_mult=thresholds_data.get("slip_mult", 2.0),
         volume_spike_mult=thresholds_data.get("volume_spike_mult", 2.0),
+        insufficient_liq_gap_pct=thresholds_data.get("insufficient_liq_gap_pct", 50.0),
     )
 
     config = MonitorConfig(
@@ -92,6 +100,8 @@ def load_config(config_path: Optional[str] = None) -> MonitorConfig:
         venues=venues,
         thresholds=thresholds,
         dedupe_window_seconds=raw.get("dedupe_window_seconds", 3600),
+        collect_workers=int(raw.get("collect_workers", 3)),
+        venue_timeout_seconds=int(raw.get("venue_timeout_seconds", 60)),
     )
 
     _validate_config(config)
@@ -121,3 +131,9 @@ def _validate_config(config: MonitorConfig) -> None:
 
     if config.orderbook_levels < 1:
         raise ValueError("orderbook_levels 不能小于 1")
+
+    if config.collect_workers < 1:
+        raise ValueError("collect_workers 不能小于 1")
+
+    if config.venue_timeout_seconds < 5:
+        raise ValueError("venue_timeout_seconds 不能小于 5 秒")

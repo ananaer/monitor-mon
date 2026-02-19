@@ -92,6 +92,8 @@ class BaselineValues:
     spread_bps_median: Optional[float] = None
     slip_bps_n2_median: Optional[float] = None
     volume_24h_mean_7d: Optional[float] = None
+    sample_count: int = 0
+    warming_up: bool = True
 
 
 @dataclass

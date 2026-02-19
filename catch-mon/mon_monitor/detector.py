@@ -4,12 +4,13 @@
 基线计算：
 - 使用最近 baseline_days 天的历史数据
 - 计算各指标的滚动中位数（median）作为基线
+- 样本数 < MIN_BASELINE_SAMPLES 时标记 warming_up，禁止 warn 类告警
 
 告警规则：
 1. 深度收缩 (depth_shrink): depth_1pct_total < median * depth_drop_mult, 连续 3 次
 2. 价差扩张 (spread_widen): spread_bps > median * spread_mult, 连续 3 次
 3. 冲击成本上升 (impact_cost_up): slip_bps_n2 > median * slip_mult, 连续 3 次
-4. 流动性不足 (insufficient_liquidity): 立即触发（缺口超 20%）
+4. 流动性不足 (insufficient_liquidity): 立即触发（缺口超阈值）
 5. 量价异常 (volume_spike): volume_24h > mean_7d * volume_spike_mult（可选）
 
 连续确认：规则 1-3 需连续 3 次采样触发才发出告警
@@ -28,6 +29,8 @@ from mon_monitor.storage import Storage
 logger = logging.getLogger(__name__)
 
 CONSECUTIVE_THRESHOLD = 3
+# 至少需要这么多样本才认为基线有效，否则 warming_up
+MIN_BASELINE_SAMPLES = 20
 
 
 def _median(values: list[float]) -> Optional[float]:
@@ -54,17 +57,27 @@ def compute_baselines(
 ) -> BaselineValues:
     """
     从历史数据计算基线值。
+    样本不足时标记 warming_up=True。
     """
     rows = storage.get_baseline_data(venue, baseline_days)
     baseline = BaselineValues(
         venue=venue,
         symbol=symbol,
         ts_utc=datetime.now(timezone.utc).isoformat(),
+        sample_count=len(rows),
     )
 
     if not rows:
-        logger.info("%s: 无历史数据，基线为空", venue)
+        logger.info("%s: 无历史数据，基线 warming_up", venue)
         return baseline
+
+    if len(rows) < MIN_BASELINE_SAMPLES:
+        logger.info(
+            "%s: 样本 %d < %d，基线 warming_up",
+            venue, len(rows), MIN_BASELINE_SAMPLES,
+        )
+    else:
+        baseline.warming_up = False
 
     # depth_1pct_total = bid + ask
     depth_totals = []
@@ -112,13 +125,23 @@ def _check_with_consecutive(
         new_count = current + 1
         storage.update_consecutive_count(counter_key, new_count, ts_utc)
         if new_count >= CONSECUTIVE_THRESHOLD:
-            # 触发后重置，避免每次都重复告警
             storage.reset_consecutive_count(counter_key)
             return True
         return False
     else:
         storage.reset_consecutive_count(counter_key)
         return False
+
+
+def _get_depth_total(snapshot: VenueSnapshot) -> Optional[float]:
+    """获取 1% 深度总和。"""
+    if not snapshot.orderbook:
+        return None
+    bid = snapshot.orderbook.depth_1pct_usdt_bid
+    ask = snapshot.orderbook.depth_1pct_usdt_ask
+    if bid is not None and ask is not None:
+        return bid + ask
+    return None
 
 
 def check_depth_shrink(
@@ -130,20 +153,19 @@ def check_depth_shrink(
     """
     检测深度收缩。
     触发条件: depth_1pct_total < median * depth_drop_mult
-    需要连续 3 次采样确认。
+    需要连续 3 次采样确认。warming_up 时不触发。
     """
+    if baseline.warming_up:
+        return None
     if not snapshot.orderbook:
         return None
     if baseline.depth_1pct_total_median is None:
         return None
 
-    ob = snapshot.orderbook
-    bid = ob.depth_1pct_usdt_bid
-    ask = ob.depth_1pct_usdt_ask
-    if bid is None or ask is None:
+    current = _get_depth_total(snapshot)
+    if current is None:
         return None
 
-    current = bid + ask
     threshold = baseline.depth_1pct_total_median * config.thresholds.depth_drop_mult
     condition = current < threshold
     counter_key = f"depth_shrink:{snapshot.venue}:{snapshot.symbol}"
@@ -155,9 +177,11 @@ def check_depth_shrink(
             symbol=snapshot.symbol,
             severity="warn",
             message=(
-                f"深度收缩: 当前 1% 总深度 {current:.0f} USDT "
-                f"< 基线 {baseline.depth_1pct_total_median:.0f} "
-                f"* {config.thresholds.depth_drop_mult}"
+                f"深度收缩: 1%深度 ${current:,.0f} "
+                f"< 基线 ${baseline.depth_1pct_total_median:,.0f} "
+                f"x {config.thresholds.depth_drop_mult} "
+                f"= ${threshold:,.0f} "
+                f"[样本{baseline.sample_count}条]"
             ),
             threshold_value=threshold,
             current_value=current,
@@ -175,10 +199,10 @@ def check_spread_widen(
     storage: Storage,
 ) -> Optional[Alert]:
     """
-    检测价差扩张。
-    触发条件: spread_bps > median * spread_mult
-    需要连续 3 次采样确认。
+    检测价差扩张。warming_up 时不触发。
     """
+    if baseline.warming_up:
+        return None
     if not snapshot.orderbook:
         return None
     if baseline.spread_bps_median is None:
@@ -199,9 +223,11 @@ def check_spread_widen(
             symbol=snapshot.symbol,
             severity="warn",
             message=(
-                f"价差扩张: 当前 spread {current:.2f} bps "
-                f"> 基线 {baseline.spread_bps_median:.2f} "
-                f"* {config.thresholds.spread_mult}"
+                f"价差扩张: {current:.1f}bp "
+                f"> 基线 {baseline.spread_bps_median:.1f}bp "
+                f"x {config.thresholds.spread_mult} "
+                f"= {threshold:.1f}bp "
+                f"[样本{baseline.sample_count}条]"
             ),
             threshold_value=threshold,
             current_value=current,
@@ -219,10 +245,10 @@ def check_impact_cost_up(
     storage: Storage,
 ) -> Optional[Alert]:
     """
-    检测冲击成本上升。
-    触发条件: max(slip_bps_buy_n2, slip_bps_sell_n2) > median * slip_mult
-    需要连续 3 次采样确认。
+    检测冲击成本上升。warming_up 时不触发。
     """
+    if baseline.warming_up:
+        return None
     if not snapshot.orderbook:
         return None
     if baseline.slip_bps_n2_median is None:
@@ -244,15 +270,20 @@ def check_impact_cost_up(
     counter_key = f"impact_cost_up:{snapshot.venue}:{snapshot.symbol}"
 
     if _check_with_consecutive(storage, counter_key, condition, snapshot.ts_utc):
+        depth_total = _get_depth_total(snapshot)
+        depth_str = f"${depth_total:,.0f}" if depth_total else "-"
         return Alert(
             alert_type="impact_cost_up",
             venue=snapshot.venue,
             symbol=snapshot.symbol,
             severity="warn",
             message=(
-                f"冲击成本上升: 当前 slip_n2 {current:.2f} bps "
-                f"> 基线 {baseline.slip_bps_n2_median:.2f} "
-                f"* {config.thresholds.slip_mult}"
+                f"冲击成本上升: slip_n2 {current:.1f}bp "
+                f"> 基线 {baseline.slip_bps_n2_median:.1f}bp "
+                f"x {config.thresholds.slip_mult} "
+                f"= {threshold:.1f}bp "
+                f"| depth1%={depth_str} "
+                f"[样本{baseline.sample_count}条]"
             ),
             threshold_value=threshold,
             current_value=current,
@@ -269,13 +300,17 @@ def check_insufficient_liquidity(
 ) -> Optional[Alert]:
     """
     检测流动性不足。
-    触发条件: insufficient_liquidity=True 且缺口超过 notional 的 20%
-    立即触发（无需连续确认）。
+    触发条件: insufficient_liquidity=True 且缺口超过阈值百分比
+    立即触发（无需连续确认，不受 warming_up 影响）。
+    告警消息包含 filled_notional 和 depth_1pct_total。
     """
     if not snapshot.orderbook:
         return None
 
     ob = snapshot.orderbook
+    depth_total = _get_depth_total(snapshot)
+    depth_str = f"${depth_total:,.0f}" if depth_total else "-"
+
     for label, impact in [
         ("buy_n2", ob.impact_buy_n2),
         ("sell_n2", ob.impact_sell_n2),
@@ -288,7 +323,7 @@ def check_insufficient_liquidity(
                 if impact.target_notional > 0
                 else 0
             )
-            if gap_pct > 20:
+            if gap_pct > config.thresholds.insufficient_liq_gap_pct:
                 return Alert(
                     alert_type="insufficient_liquidity",
                     venue=snapshot.venue,
@@ -296,11 +331,12 @@ def check_insufficient_liquidity(
                     severity="critical",
                     message=(
                         f"流动性不足 ({label}): "
-                        f"目标 {impact.target_notional:.0f} USDT, "
-                        f"已成交 {impact.filled_notional:.0f} USDT, "
-                        f"缺口 {impact.shortfall:.0f} USDT ({gap_pct:.1f}%)"
+                        f"目标 ${impact.target_notional:,.0f}, "
+                        f"成交 ${impact.filled_notional:,.0f}, "
+                        f"缺口 ${impact.shortfall:,.0f} ({gap_pct:.0f}%) "
+                        f"| depth1%={depth_str}"
                     ),
-                    threshold_value=impact.target_notional * 0.8,
+                    threshold_value=impact.target_notional * (1 - config.thresholds.insufficient_liq_gap_pct / 100),
                     current_value=impact.filled_notional,
                     baseline_value=None,
                     ts_utc=snapshot.ts_utc,
@@ -317,9 +353,10 @@ def check_volume_spike(
     config: MonitorConfig,
 ) -> Optional[Alert]:
     """
-    检测量价异常（可选）。
-    触发条件: volume_24h > mean_7d * volume_spike_mult
+    检测量价异常（可选）。warming_up 时不触发。
     """
+    if baseline.warming_up:
+        return None
     if not snapshot.ticker:
         return None
     if baseline.volume_24h_mean_7d is None:
@@ -333,7 +370,6 @@ def check_volume_spike(
     if volume <= threshold:
         return None
 
-    # 判断方向
     direction = "放量"
     pct = snapshot.ticker.pct_change_24h
     if pct is not None:
@@ -348,9 +384,11 @@ def check_volume_spike(
         symbol=snapshot.symbol,
         severity="info",
         message=(
-            f"量价异常 ({direction}): 当前 24h 成交量 {volume:.0f} USDT "
-            f"> 7d 均值 {baseline.volume_24h_mean_7d:.0f} "
-            f"* {config.thresholds.volume_spike_mult}"
+            f"量价异常 ({direction}): 24h量 ${volume:,.0f} "
+            f"> 7d均值 ${baseline.volume_24h_mean_7d:,.0f} "
+            f"x {config.thresholds.volume_spike_mult} "
+            f"= ${threshold:,.0f} "
+            f"[样本{baseline.sample_count}条]"
         ),
         threshold_value=threshold,
         current_value=volume,
@@ -369,6 +407,7 @@ def run_all_checks(
     """
     对单个 venue 执行所有告警检查。
     返回新产生的告警列表（已去重）。
+    warming_up 时只有 insufficient_liquidity 可触发。
     """
     if snapshot.missing_market:
         return []
@@ -385,7 +424,6 @@ def run_all_checks(
     for alert in checks:
         if alert is None:
             continue
-        # 去重检查
         if storage.check_dedupe(alert.dedupe_key, config.dedupe_window_seconds):
             logger.info("告警去重: %s", alert.dedupe_key)
             continue

@@ -275,13 +275,23 @@ def process_ohlcv(candles: list[list]) -> OhlcvData:
 def enrich_snapshot(snapshot: VenueSnapshot, config) -> VenueSnapshot:
     """
     对采集后的 snapshot 进行派生计算填充。
+    支持 venue 级别的 notional 覆盖。
     """
     if snapshot.missing_market:
         return snapshot
 
+    # venue 级 notional 覆盖
+    venue_cfg = config.venues.get(snapshot.venue)
+    n1 = config.notional_1
+    n2 = config.notional_2
+    if venue_cfg:
+        if venue_cfg.notional_1 is not None:
+            n1 = venue_cfg.notional_1
+        if venue_cfg.notional_2 is not None:
+            n2 = venue_cfg.notional_2
+
     ob_raw = snapshot.raw_json.get("orderbook_raw")
     if ob_raw:
-        # 先取 ticker 里的 last_price 作为参考 mid
         ticker_mid = 0
         if snapshot.ticker and snapshot.ticker.last_price:
             ticker_mid = snapshot.ticker.last_price
@@ -289,8 +299,8 @@ def enrich_snapshot(snapshot: VenueSnapshot, config) -> VenueSnapshot:
         snapshot.orderbook = process_orderbook(
             ob_raw,
             ticker_mid,
-            config.notional_1,
-            config.notional_2,
+            n1,
+            n2,
             config.orderbook_levels,
         )
 
