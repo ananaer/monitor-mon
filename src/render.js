@@ -9,6 +9,7 @@ import {
   getRatioClass,
   escapeHtml,
 } from "./format.js";
+import { renderTrendCharts } from "./chart.js";
 
 const els = {
   tokenName: document.getElementById("token-name"),
@@ -176,15 +177,12 @@ export function renderTrendSummary(history) {
   const byVenue = history?.by_venue || {};
   const venues = Object.keys(byVenue);
   if (venues.length === 0) {
-    els.trendSummary.textContent = "暂无趋势数据";
+    if (els.trendSummary) els.trendSummary.textContent = "暂无趋势数据";
+    renderTrendCharts(history);
     return;
   }
-  const lines = venues.map((venue) => {
-    const points = byVenue[venue] || [];
-    const latest = points.length > 0 ? points[points.length - 1] : null;
-    return `${venue.toUpperCase()}  价格: ${formatNumber(latest?.last_price, 6)}  价差: ${formatNumber(latest?.spread_bps, 2)} bps  深度: $${formatNumber(latest?.depth_1pct_total_usdt, 0)}`;
-  });
-  els.trendSummary.textContent = lines.join("\n");
+  if (els.trendSummary) els.trendSummary.textContent = "";
+  renderTrendCharts(history);
 }
 
 export function renderOverview(overview) {
