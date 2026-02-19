@@ -1,0 +1,10 @@
+{
+  "name": "project",
+  "version": "1.0.0",
+  "description": "MON 多交易所流动性监控",
+  "scripts": {
+    "build": "echo 'No build step required'",
+    "start": "echo 'Start the Python web server: python3 catch-mon/web/server.py'"
+  },
+  "dependencies": {}
+}
