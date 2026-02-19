@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>报警策略 - MON 监控</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <style>
+      .policy-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .policy-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 20px 22px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0 16px;
+      }
+
+      .policy-card-left {
+        min-width: 0;
+      }
+
+      .policy-name {
+        margin: 0 0 4px;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .policy-type {
+        margin: 0 0 10px;
+        font-size: 12px;
+        font-family: "SF Mono", "Consolas", monospace;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+      }
+
+      .policy-desc {
+        margin: 0 0 14px;
+        font-size: 13px;
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      .policy-rules {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .rule-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+      }
+
+      .rule-label {
+        color: var(--muted);
+        min-width: 56px;
+        flex-shrink: 0;
+      }
+
+      .rule-expr {
+        font-family: "SF Mono", "Consolas", monospace;
+        font-size: 12px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 3px 8px;
+        color: var(--text);
+      }
+
+      .policy-card-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        padding-top: 2px;
+        flex-shrink: 0;
+      }
+
+      .policy-metric-tag {
+        display: inline-block;
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        background: var(--accent-soft);
+        color: var(--accent);
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .dedup-note {
+        font-size: 11px;
+        color: var(--muted);
+        text-align: right;
+        max-width: 120px;
+      }
+
+      .concept-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+
+      .concept-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 18px;
+      }
+
+      .concept-title {
+        margin: 0 0 6px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .concept-body {
+        margin: 0;
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .flow-steps {
+        counter-reset: step;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+
+      .flow-step {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 14px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+
+      .flow-step:last-child {
+        border-bottom: none;
+      }
+
+      .step-num {
+        counter-increment: step;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+
+      .step-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .step-title {
+        margin: 0 0 4px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .step-desc {
+        margin: 0;
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      @media (max-width: 720px) {
+        .policy-card {
+          grid-template-columns: 1fr;
+        }
+
+        .policy-card-right {
+          flex-direction: row;
+          align-items: center;
+        }
+
+        .dedup-note {
+          max-width: none;
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+
+      <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-mark">M</div>
+          <p class="sidebar-logo-name">MON 监控</p>
+          <p class="sidebar-logo-sub">多交易所流动性</p>
+        </div>
+
+        <nav class="sidebar-nav">
+          <p class="sidebar-section-label">监控</p>
+          <a href="/" class="nav-item">
+            <span class="nav-icon">&#128202;</span>
+            总览面板
+          </a>
+          <a href="/#alerts" class="nav-item">
+            <span class="nav-icon">&#128276;</span>
+            告警记录
+          </a>
+          <a href="/policies.html" class="nav-item active">
+            <span class="nav-icon">&#128221;</span>
+            报警策略
+          </a>
+
+          <p class="sidebar-section-label" style="margin-top:16px">管理</p>
+          <a href="/admin.html" class="nav-item">
+            <span class="nav-icon">&#9881;</span>
+            采集器管理
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <p class="sidebar-footer-text">多交易所流动性监控</p>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div id="app">
+          <header class="hero">
+            <div>
+              <p class="eyebrow">ALERT POLICIES</p>
+              <h1>报警策略</h1>
+              <p class="subline">当前系统内置的所有报警规则、触发条件与严重等级说明</p>
+            </div>
+          </header>
+
+          <section class="panel" style="margin-bottom:24px">
+            <div class="panel-title-row">
+              <h2>触发流程</h2>
+            </div>
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                  <p class="step-title">数据采集</p>
+                  <p class="step-desc">采集器每次触发时，向 Binance / OKX / Bybit 拉取订单簿、Ticker、K 线、资金费率等原始数据，并写入 <code>metrics_snapshot</code> 表。</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                  <p class="step-title">基线更新</p>
+                  <p class="step-desc">每次采集后，系统取每个交易所最近 200 条无异常快照，计算价差、深度、冲击成本的中位数，作为各指标的「正常基线」写入 <code>baselines</code> 表（至少需要 3 条样本才更新）。</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                  <p class="step-title">规则检测</p>
+                  <p class="step-desc">本次快照与对应交易所的基线对比，逐条执行下方报警规则。若当前值超出阈值，则准备生成报警记录。</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">4</div>
+                <div class="step-content">
+                  <p class="step-title">去重写入</p>
+                  <p class="step-desc">同一交易所、同一告警类型在 <strong>1 小时滚动窗口</strong>内只写入一次，避免告警洪泛。超过 1 小时后同类问题仍存在才会再次触发。</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <h2 style="margin:0 0 14px">内置报警规则</h2>
+
+          <div class="policy-grid">
+
+            <div class="policy-card">
+              <div class="policy-card-left">
+                <p class="policy-name">深度萎缩</p>
+                <p class="policy-type">alert_type: depth_shrink</p>
+                <p class="policy-desc">
+                  当某交易所 1% 价格区间内的双侧订单簿深度（bid + ask，USDT 计价）相比历史基线出现明显下降时触发。
+                  深度萎缩通常意味着市场流动性恶化，大单成交将承受更高的冲击成本。
+                </p>
+                <div class="policy-rules">
+                  <div class="rule-row">
+                    <span class="severity-tag sev-warn rule-label" style="min-width:auto;margin:0">WARN</span>
+                    <span class="rule-expr">当前深度 / 基线深度 &lt; 70%</span>
+                  </div>
+                  <div class="rule-row">
+                    <span class="severity-tag sev-critical rule-label" style="min-width:auto;margin:0">CRITICAL</span>
+                    <span class="rule-expr">当前深度 / 基线深度 &lt; 40%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="policy-card-right">
+                <span class="policy-metric-tag">1% 深度 (USDT)</span>
+                <span class="dedup-note">去重窗口：1 小时</span>
+              </div>
+            </div>
+
+            <div class="policy-card">
+              <div class="policy-card-left">
+                <p class="policy-name">价差扩大</p>
+                <p class="policy-type">alert_type: spread_widen</p>
+                <p class="policy-desc">
+                  当买卖价差（以 bps 计）超过历史基线中位数的 2 倍时触发。价差扩大表明做市商报价保守，
+                  市场流动性变差，交易成本上升，可能是市场波动加剧或做市商撤单的信号。
+                </p>
+                <div class="policy-rules">
+                  <div class="rule-row">
+                    <span class="severity-tag sev-warn rule-label" style="min-width:auto;margin:0">WARN</span>
+                    <span class="rule-expr">当前价差 / 基线价差 &gt; 2×</span>
+                  </div>
+                </div>
+              </div>
+              <div class="policy-card-right">
+                <span class="policy-metric-tag">买卖价差 (bps)</span>
+                <span class="dedup-note">去重窗口：1 小时</span>
+              </div>
+            </div>
+
+          </div>
+
+          <section class="panel" style="margin-bottom:24px">
+            <div class="panel-title-row">
+              <h2>严重等级说明</h2>
+            </div>
+            <table class="data-table" style="min-width:0">
+              <thead>
+                <tr>
+                  <th>等级</th>
+                  <th>含义</th>
+                  <th>建议处理</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="severity-tag sev-critical">CRITICAL</span></td>
+                  <td>指标偏离基线幅度严重，市场流动性可能已严重恶化</td>
+                  <td>立即人工介入检查，暂停依赖该交易所流动性的操作</td>
+                </tr>
+                <tr>
+                  <td><span class="severity-tag sev-warn">WARN</span></td>
+                  <td>指标偏离基线，但尚未达到严重程度，需持续关注</td>
+                  <td>关注后续数据变化趋势，若持续恶化则升级处理</td>
+                </tr>
+                <tr>
+                  <td><span class="severity-tag sev-info">INFO</span></td>
+                  <td>正常信息性通知，无需紧急处理</td>
+                  <td>记录存档，定期回顾</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <h2 style="margin:0 0 14px">指标说明</h2>
+          <div class="concept-grid">
+            <div class="concept-card">
+              <p class="concept-title">买卖价差 (spread_bps)</p>
+              <p class="concept-body">最优买一价与最优卖一价之差，以基点 (bps = 0.01%) 表示。公式：<code>(ask - bid) / bid × 10000</code>。价差越小，做市报价越紧密，交易成本越低。</p>
+            </div>
+            <div class="concept-card">
+              <p class="concept-title">1% 深度 (depth_1pct)</p>
+              <p class="concept-body">以中间价为中心，±1% 价格范围内的双侧订单量（USD 计价）之和。深度越大，市场承接大单的能力越强，价格冲击越小。</p>
+            </div>
+            <div class="concept-card">
+              <p class="concept-title">冲击成本 (slip_bps)</p>
+              <p class="concept-body">执行指定名义金额的市价单时，成交均价相对中间价的偏差（bps）。N1 = $10,000 档，N2 = $100,000 档。冲击成本越低说明流动性越好。</p>
+            </div>
+            <div class="concept-card">
+              <p class="concept-title">历史基线 (baseline)</p>
+              <p class="concept-body">取每个交易所最近 200 条无异常快照的各指标中位数，作为「正常水平」参考。每次采集后自动更新，至少需要 3 条样本才会计算基线。</p>
+            </div>
+            <div class="concept-card">
+              <p class="concept-title">资金费率 (funding_rate)</p>
+              <p class="concept-body">永续合约多空双方之间每 8 小时结算一次的费率。正值表示多头支付空头，负值相反。极端资金费率是市场单边情绪过热的信号。</p>
+            </div>
+            <div class="concept-card">
+              <p class="concept-title">持仓量 (open_interest)</p>
+              <p class="concept-body">当前未平仓合约的总名义价值（USD）。持仓量骤降往往伴随大规模强平，可能引发流动性快速恶化。</p>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const toggle = document.getElementById("sidebar-toggle");
+      const sidebar = document.getElementById("sidebar");
+      const overlay = document.getElementById("sidebar-overlay");
+      toggle.addEventListener("click", () => {
+        sidebar.classList.toggle("open");
+        overlay.classList.toggle("open");
+      });
+      overlay.addEventListener("click", () => {
+        sidebar.classList.remove("open");
+        overlay.classList.remove("open");
+      });
+    </script>
+  </body>
+</html>
