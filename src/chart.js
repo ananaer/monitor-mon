@@ -107,6 +107,9 @@ export function renderTrendCharts(history) {
     { key: "last_price", label: "价格", format: (v) => v.toFixed(6) },
     { key: "spread_bps", label: "价差 (bps)", format: (v) => v.toFixed(2) },
     { key: "depth_1pct_total_usdt", label: "1% 深度 (USDT)", format: (v) => "$" + (v >= 1000 ? (v / 1000).toFixed(1) + "k" : v.toFixed(0)) },
+    { key: "open_interest_usd", label: "持仓量 OI (USDT)", format: (v) => "$" + (v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : v >= 1000 ? (v / 1000).toFixed(0) + "k" : v.toFixed(0)) },
+    { key: "funding_rate", label: "资金费率", format: (v) => (v * 100).toFixed(4) + "%" },
+    { key: "slip_bps_n2", label: "冲击成本 N2 (bps)", format: (v) => v.toFixed(2) },
   ];
 
   metrics.forEach(({ key, label, format }) => {

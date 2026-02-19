@@ -28,7 +28,7 @@ Deno.serve(async (req: Request) => {
       venues.map(async (venue) => {
         const { data } = await supabase
           .from("metrics_snapshot")
-          .select("ts_utc, last_price, spread_bps, depth_1pct_total_usdt, quote_volume_24h")
+          .select("ts_utc, last_price, spread_bps, depth_1pct_total_usdt, quote_volume_24h, funding_rate, open_interest_usd, slip_bps_n2")
           .eq("venue", venue)
           .eq("token", tokenParam)
           .is("error_type", null)

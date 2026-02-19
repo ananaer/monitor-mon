@@ -572,6 +572,139 @@ h2 {
   }
 }
 
+.signals-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.signal-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.sig-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.sig-venue-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sig-venue {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sig-dir-tag {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sig-dir-long  { background: #dcfce7; color: #15803d; }
+.sig-dir-short { background: #fee2e2; color: #dc2626; }
+.sig-dir-flat  { background: #f1f5f9; color: #64748b; }
+
+.sig-badge {
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sig-description {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.sig-conf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sig-conf-label {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sig-conf-track {
+  flex: 1;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.sig-conf-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.sig-conf-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 28px;
+  text-align: right;
+}
+
+.sig-components {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  padding-top: 10px;
+}
+
+.sig-comp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sig-comp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sig-comp-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 68px;
+}
+
+.sig-comp-detail {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .signals-grid { grid-template-columns: 1fr; }
+}
+
 code {
   font-family: "SF Mono", "Consolas", monospace;
   font-size: 12px;

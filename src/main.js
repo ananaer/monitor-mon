@@ -8,6 +8,7 @@ import {
   updateRefreshHint,
   renderTokenSwitcher,
 } from "./render.js";
+import { renderSignals } from "./signal-render.js";
 
 const DEFAULT_REFRESH_INTERVAL_MS = 15000;
 
@@ -53,6 +54,7 @@ function createWorker() {
     if (msg.type === "data") {
       renderOverview(msg.overview);
       renderTrendSummary(msg.history);
+      renderSignals(msg.history, msg.overview?.venues);
       setError("");
 
       nextAutoRefreshAt = Date.now() + refreshIntervalMs;
