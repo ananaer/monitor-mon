@@ -122,7 +122,7 @@ async function collectBinance(): Promise<VenueResult> {
   try {
     const [tickerRes, bookRes, bookTickerRes, fundRes, oiRes, klinesRes] = await Promise.all([
       fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`),
-      fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${symbol}&limit=200`),
+      fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${symbol}&limit=500`),
       fetch(`https://fapi.binance.com/fapi/v1/ticker/bookTicker?symbol=${symbol}`),
       fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`),
       fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`),
