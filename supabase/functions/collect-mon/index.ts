@@ -120,9 +120,10 @@ async function collectBinance(): Promise<VenueResult> {
   const venue = "binance";
   const symbol = "MONUSDT";
   try {
-    const [tickerRes, bookRes, fundRes, oiRes, klinesRes] = await Promise.all([
+    const [tickerRes, bookRes, bookTickerRes, fundRes, oiRes, klinesRes] = await Promise.all([
       fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`),
       fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${symbol}&limit=200`),
+      fetch(`https://fapi.binance.com/fapi/v1/ticker/bookTicker?symbol=${symbol}`),
       fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`),
       fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`),
       fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=26`),
@@ -135,13 +136,14 @@ async function collectBinance(): Promise<VenueResult> {
 
     const ticker = await tickerRes.json();
     const book = bookRes.ok ? await bookRes.json() : null;
+    const bookTicker = bookTickerRes.ok ? await bookTickerRes.json() : null;
     const fundArr = fundRes.ok ? await fundRes.json() : null;
     const oi = oiRes.ok ? await oiRes.json() : null;
     const klinesRaw = klinesRes.ok ? await klinesRes.json() : null;
 
     const lastPrice = safeNum(ticker.lastPrice);
-    const bidPrice = safeNum(ticker.bidPrice);
-    const askPrice = safeNum(ticker.askPrice);
+    const bidPrice = safeNum(bookTicker?.bidPrice ?? ticker.bidPrice);
+    const askPrice = safeNum(bookTicker?.askPrice ?? ticker.askPrice);
     const volume = safeNum(ticker.quoteVolume);
     const fundRate = fundArr?.[0] ? safeNum(fundArr[0].fundingRate) : null;
     const oiUsd = oi && lastPrice ? (safeNum(oi.openInterest) ?? 0) * lastPrice : null;
