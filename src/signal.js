@@ -1,5 +1,6 @@
 const LOOKBACK = 96;
 const FR_EXTREME_PCTILE = 0.85;
+const FR_EXTREME_ABS = 0.0003;
 
 function last(arr) {
   return arr.length > 0 ? arr[arr.length - 1] : null;
@@ -64,8 +65,8 @@ function oiCrowding(venue, points) {
 
   const oiRecent = oiSeries.slice(-Math.min(oiSeries.length, LOOKBACK));
   const oiSlope = slope(oiRecent);
-  const oiRising = oiSlope > 0.002;
-  const oiFalling = oiSlope < -0.002;
+  const oiRising = oiSlope > 0.005;
+  const oiFalling = oiSlope < -0.005;
 
   let frExtreme = false;
   let frDirection = "neutral";
@@ -75,10 +76,15 @@ function oiCrowding(venue, points) {
     frVal = last(frRecent);
     const frHigh = percentile(frRecent, FR_EXTREME_PCTILE);
     const frLow = percentile(frRecent, 1 - FR_EXTREME_PCTILE);
-    if (frVal !== null && frHigh !== null && frVal >= frHigh) {
+    const absExtremeHigh = frVal !== null && frVal >= FR_EXTREME_ABS;
+    const absExtremeLow = frVal !== null && frVal <= -FR_EXTREME_ABS;
+    const pctExtremeHigh = frVal !== null && frHigh !== null && frVal >= frHigh;
+    const pctExtremeLow = frVal !== null && frLow !== null && frVal <= frLow;
+
+    if (pctExtremeHigh || absExtremeHigh) {
       frExtreme = true;
       frDirection = "long_crowded";
-    } else if (frVal !== null && frLow !== null && frVal <= frLow) {
+    } else if (pctExtremeLow || absExtremeLow) {
       frExtreme = true;
       frDirection = "short_crowded";
     } else if (frVal !== null) {
@@ -201,12 +207,20 @@ function classifySignal(price, oi, exec) {
   }
 
   if (oi.deleveraging && price.score >= 0.5) {
+    let revDir;
+    if (price.direction === "long") {
+      revDir = "short";
+    } else if (price.direction === "short") {
+      revDir = "long";
+    } else {
+      revDir = oi.frDirection === "long_crowded" || oi.frDirection === "long_mild" ? "short" : "long";
+    }
     return {
       type: "reversal",
       label: "清算释放",
       description: "OI 去杠杆后回摆机会，等下一根四小时确认",
       confidence: Math.round((price.score + (oi.score > 0 ? 0.5 : 0.3)) * 50),
-      direction: price.direction === "long" ? "short" : "long",
+      direction: revDir,
       color: "signal-reversal",
     };
   }
@@ -227,7 +241,7 @@ function classifySignal(price, oi, exec) {
       type: "trend",
       label: "顺势延续",
       description: "价格突破 + OI 增仓 + 执行质量良好，跟随四小时趋势",
-      confidence: Math.round((price.score + oi.score + 1) / 3 * 100),
+      confidence: Math.round((price.score + oi.score) / 2 * 100),
       direction: price.direction,
       color: "signal-trend",
     };
