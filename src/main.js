@@ -110,7 +110,7 @@ function init() {
   setInterval(() => {
     updateRefreshHint(nextAutoRefreshAt, refreshIntervalMs);
     if (!loading && Date.now() >= nextAutoRefreshAt) {
-      triggerFetch();
+      triggerCollect();
     }
   }, 1000);
 }
