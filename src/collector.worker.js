@@ -25,21 +25,32 @@ async function fetchJson(path, timeoutMs = 12000) {
   }
 }
 
-async function runCycle() {
+async function fetchData() {
+  self.postMessage({ type: "status", status: "fetching" });
+
+  const [overview, history, alerts] = await Promise.all([
+    fetchJson("/api-overview"),
+    fetchJson("/api-history?limit=120"),
+    fetchJson("/api-alerts?limit=50"),
+  ]);
+
+  self.postMessage({ type: "data", overview, history, alerts });
+}
+
+async function runFetch() {
+  try {
+    await fetchData();
+  } catch (err) {
+    self.postMessage({ type: "error", message: err?.message || String(err) });
+  }
+}
+
+async function runCollect() {
   self.postMessage({ type: "status", status: "collecting" });
 
   try {
     await fetchJson("/collect-mon");
-
-    self.postMessage({ type: "status", status: "fetching" });
-
-    const [overview, history, alerts] = await Promise.all([
-      fetchJson("/api-overview"),
-      fetchJson("/api-history?limit=120"),
-      fetchJson("/api-alerts?limit=50"),
-    ]);
-
-    self.postMessage({ type: "data", overview, history, alerts });
+    await fetchData();
   } catch (err) {
     self.postMessage({ type: "error", message: err?.message || String(err) });
   }
@@ -50,12 +61,17 @@ self.onmessage = (e) => {
 
   if (type === "init") {
     initConfig(supabaseUrl, anonKey);
-    runCycle();
+    runFetch();
+    return;
+  }
+
+  if (type === "fetch") {
+    runFetch();
     return;
   }
 
   if (type === "collect") {
-    runCycle();
+    runCollect();
     return;
   }
 };

@@ -70,6 +70,13 @@ function createWorker() {
   };
 }
 
+function triggerFetch() {
+  if (loading) return;
+  loading = true;
+  setLoadingState(true);
+  worker.postMessage({ type: "fetch" });
+}
+
 function triggerCollect() {
   if (loading) return;
   loading = true;
@@ -82,7 +89,7 @@ function init() {
 
   createWorker();
 
-  els.refreshBtn.addEventListener("click", triggerCollect);
+  els.refreshBtn.addEventListener("click", triggerFetch);
 
   if (els.collectBtn) {
     els.collectBtn.addEventListener("click", triggerCollect);
@@ -103,7 +110,7 @@ function init() {
   setInterval(() => {
     updateRefreshHint(nextAutoRefreshAt, refreshIntervalMs);
     if (!loading && Date.now() >= nextAutoRefreshAt) {
-      triggerCollect();
+      triggerFetch();
     }
   }, 1000);
 }
