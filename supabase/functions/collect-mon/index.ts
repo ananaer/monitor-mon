@@ -135,6 +135,7 @@ async function collectBinance(): Promise<VenueResult> {
     }
 
     const ticker = await tickerRes.json();
+    const bookRawText = bookRes.ok ? null : await bookRes.text().catch(() => "");
     const book = bookRes.ok ? await bookRes.json() : null;
     const bookTicker = bookTickerRes.ok ? await bookTickerRes.json() : null;
     const fundArr = fundRes.ok ? await fundRes.json() : null;
@@ -184,7 +185,7 @@ async function collectBinance(): Promise<VenueResult> {
       rvol_24h: rvol,
       error_type: null,
       error_msg: null,
-      raw_json: { price: lastPrice, volume24h: volume },
+      raw_json: { price: lastPrice, volume24h: volume, book_status: bookRes.status, book_err: bookRawText },
     };
   } catch (e) {
     return {
