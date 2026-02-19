@@ -42,8 +42,6 @@ const LOGIC_DOCS = {
   ],
 };
 
-let _logicExpanded = false;
-
 function logicTable(rows) {
   return `<table class="logic-table">
     <thead><tr><th>条件</th><th>结果</th></tr></thead>
@@ -130,6 +128,8 @@ function renderSignalCard(item) {
     </div>`;
 }
 
+let _logicOpen = false;
+
 export function renderSignals(history, overviewVenues) {
   const container = document.getElementById("signals-container");
   if (!container) return;
@@ -143,13 +143,16 @@ export function renderSignals(history, overviewVenues) {
   const toggleId = "sig-logic-toggle";
   const panelId = "sig-logic-body";
 
+  const bodyClass = _logicOpen ? "logic-body" : "logic-body hidden";
+  const arrowChar = _logicOpen ? "&#9662;" : "&#9656;";
+
   container.innerHTML = `
     <div class="signals-grid">${results.map(renderSignalCard).join("")}</div>
     <div class="logic-disclosure">
-      <button class="logic-toggle" id="${toggleId}" aria-expanded="false">
-        计算逻辑 &nbsp;<span class="logic-toggle-arrow" id="sig-logic-arrow">&#9656;</span>
+      <button class="logic-toggle" id="${toggleId}" aria-expanded="${_logicOpen}">
+        计算逻辑 &nbsp;<span class="logic-toggle-arrow" id="sig-logic-arrow">${arrowChar}</span>
       </button>
-      <div class="logic-body hidden" id="${panelId}">
+      <div class="${bodyClass}" id="${panelId}">
         ${logicPanel()}
       </div>
     </div>`;
@@ -158,9 +161,9 @@ export function renderSignals(history, overviewVenues) {
     const body = document.getElementById(panelId);
     const arrow = document.getElementById("sig-logic-arrow");
     if (!body) return;
-    const open = !body.classList.contains("hidden");
-    body.classList.toggle("hidden", open);
-    if (arrow) arrow.innerHTML = open ? "&#9656;" : "&#9662;";
-    document.getElementById(toggleId)?.setAttribute("aria-expanded", String(!open));
+    _logicOpen = !_logicOpen;
+    body.classList.toggle("hidden", !_logicOpen);
+    if (arrow) arrow.innerHTML = _logicOpen ? "&#9662;" : "&#9656;";
+    document.getElementById(toggleId)?.setAttribute("aria-expanded", String(_logicOpen));
   });
 }
