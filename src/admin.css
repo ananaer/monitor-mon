@@ -11,19 +11,8 @@
 }
 
 .admin-header-left h1 {
-  margin: 4px 0 4px;
+  margin: 0 0 4px;
   font-size: clamp(20px, 2.5vw, 28px);
-}
-
-.back-link {
-  font-size: 12px;
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.back-link:hover {
-  text-decoration: underline;
 }
 
 .admin-header-right {

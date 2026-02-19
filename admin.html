@@ -11,120 +11,175 @@
     <link rel="stylesheet" href="/src/admin.css" />
   </head>
   <body>
-    <div id="app">
-      <header class="admin-header">
-        <div class="admin-header-left">
-          <a href="/" class="back-link">← 返回监控面板</a>
-          <h1>采集器管理</h1>
-          <p class="subline">管理监控的币种及交易所配置</p>
-        </div>
-        <div class="admin-header-right">
-          <div class="collector-status-box">
-            <p class="status-box-label">采集器状态</p>
-            <p id="admin-collector-status" class="status-box-value">-</p>
-            <p id="admin-last-cycle" class="status-box-sub">-</p>
-          </div>
-          <div class="collector-status-box">
-            <p class="status-box-label">总快照数</p>
-            <p id="admin-snapshot-count" class="status-box-value">-</p>
-            <p class="status-box-sub">累计</p>
-          </div>
-          <div class="collector-status-box">
-            <p class="status-box-label">24h 告警</p>
-            <p id="admin-alert-count" class="status-box-value">-</p>
-            <p class="status-box-sub">近 24 小时</p>
-          </div>
-        </div>
-      </header>
+    <div class="layout">
 
-      <p id="admin-error" class="error hidden"></p>
+      <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-      <section class="panel">
-        <div class="panel-title-row">
-          <h2>币种配置</h2>
-          <button id="add-token-btn" class="refresh-btn">+ 添加币种</button>
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-mark">M</div>
+          <p class="sidebar-logo-name">MON 监控</p>
+          <p class="sidebar-logo-sub">多交易所流动性</p>
         </div>
 
-        <div id="token-empty" class="empty hidden">暂无配置，请点击"添加币种"</div>
+        <nav class="sidebar-nav">
+          <p class="sidebar-section-label">监控</p>
+          <a href="/" class="nav-item">
+            <span class="nav-icon">&#128202;</span>
+            总览面板
+          </a>
+          <a href="/#alerts" class="nav-item">
+            <span class="nav-icon">&#128276;</span>
+            告警记录
+          </a>
 
-        <div class="table-wrap">
-          <table class="data-table" id="token-table">
-            <thead>
-              <tr>
-                <th>币种</th>
-                <th>状态</th>
-                <th>Binance 合约</th>
-                <th>OKX 合约</th>
-                <th>Bybit 合约</th>
-                <th>备注</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="token-tbody">
-              <tr><td colspan="7" class="muted" style="padding:20px;text-align:center">加载中...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <p class="sidebar-section-label" style="margin-top:16px">管理</p>
+          <a href="/admin.html" class="nav-item active">
+            <span class="nav-icon">&#9881;</span>
+            采集器管理
+          </a>
+          <a href="/admin.html#tokens" class="nav-item active">
+            <span class="nav-icon">&#128176;</span>
+            币种配置
+          </a>
+        </nav>
 
-      <div id="token-modal" class="modal-overlay hidden">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 id="modal-title">添加币种</h3>
-            <button id="modal-close" class="modal-close">×</button>
-          </div>
-          <form id="token-form" class="modal-form">
-            <input type="hidden" id="form-id" value="" />
-            <div class="form-row">
-              <label for="form-token">币种名称 *</label>
-              <input id="form-token" type="text" placeholder="例如: BTC" required />
-            </div>
-            <div class="form-row">
-              <label for="form-enabled">启用采集</label>
-              <label class="toggle">
-                <input id="form-enabled" type="checkbox" checked />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="form-row">
-              <label for="form-binance">Binance 合约 Symbol</label>
-              <input id="form-binance" type="text" placeholder="例如: BTCUSDT" />
-            </div>
-            <div class="form-row">
-              <label for="form-okx">OKX Instrument ID</label>
-              <input id="form-okx" type="text" placeholder="例如: BTC-USDT-SWAP" />
-            </div>
-            <div class="form-row">
-              <label for="form-bybit">Bybit 合约 Symbol</label>
-              <input id="form-bybit" type="text" placeholder="例如: BTCUSDT" />
-            </div>
-            <div class="form-row">
-              <label for="form-note">备注</label>
-              <input id="form-note" type="text" placeholder="可选备注" />
-            </div>
-            <p id="form-error" class="form-error hidden"></p>
-            <div class="modal-actions">
-              <button type="button" id="modal-cancel" class="collect-btn">取消</button>
-              <button type="submit" id="modal-submit" class="refresh-btn">保存</button>
-            </div>
-          </form>
+        <div class="sidebar-footer">
+          <p class="sidebar-footer-text">采集器: <strong id="sidebar-collector-status">-</strong></p>
+          <p class="sidebar-footer-text" style="margin-top:2px">状态面板</p>
         </div>
-      </div>
+      </aside>
 
-      <div id="confirm-modal" class="modal-overlay hidden">
-        <div class="modal modal-sm">
-          <div class="modal-header">
-            <h3>确认删除</h3>
+      <main class="main-content">
+        <div id="app">
+          <header class="admin-header">
+            <div class="admin-header-left">
+              <h1>采集器管理</h1>
+              <p class="subline">管理监控的币种及交易所配置</p>
+            </div>
+            <div class="admin-header-right">
+              <div class="collector-status-box">
+                <p class="status-box-label">采集器状态</p>
+                <p id="admin-collector-status" class="status-box-value">-</p>
+                <p id="admin-last-cycle" class="status-box-sub">-</p>
+              </div>
+              <div class="collector-status-box">
+                <p class="status-box-label">总快照数</p>
+                <p id="admin-snapshot-count" class="status-box-value">-</p>
+                <p class="status-box-sub">累计</p>
+              </div>
+              <div class="collector-status-box">
+                <p class="status-box-label">24h 告警</p>
+                <p id="admin-alert-count" class="status-box-value">-</p>
+                <p class="status-box-sub">近 24 小时</p>
+              </div>
+            </div>
+          </header>
+
+          <p id="admin-error" class="error hidden"></p>
+
+          <section class="panel" id="tokens">
+            <div class="panel-title-row">
+              <h2>币种配置</h2>
+              <button id="add-token-btn" class="refresh-btn">+ 添加币种</button>
+            </div>
+
+            <div id="token-empty" class="empty hidden">暂无配置，请点击"添加币种"</div>
+
+            <div class="table-wrap">
+              <table class="data-table" id="token-table">
+                <thead>
+                  <tr>
+                    <th>币种</th>
+                    <th>状态</th>
+                    <th>Binance 合约</th>
+                    <th>OKX 合约</th>
+                    <th>Bybit 合约</th>
+                    <th>备注</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="token-tbody">
+                  <tr><td colspan="7" class="muted" style="padding:20px;text-align:center">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div id="token-modal" class="modal-overlay hidden">
+            <div class="modal">
+              <div class="modal-header">
+                <h3 id="modal-title">添加币种</h3>
+                <button id="modal-close" class="modal-close">×</button>
+              </div>
+              <form id="token-form" class="modal-form">
+                <input type="hidden" id="form-id" value="" />
+                <div class="form-row">
+                  <label for="form-token">币种名称 *</label>
+                  <input id="form-token" type="text" placeholder="例如: BTC" required />
+                </div>
+                <div class="form-row">
+                  <label for="form-enabled">启用采集</label>
+                  <label class="toggle">
+                    <input id="form-enabled" type="checkbox" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="form-row">
+                  <label for="form-binance">Binance 合约 Symbol</label>
+                  <input id="form-binance" type="text" placeholder="例如: BTCUSDT" />
+                </div>
+                <div class="form-row">
+                  <label for="form-okx">OKX Instrument ID</label>
+                  <input id="form-okx" type="text" placeholder="例如: BTC-USDT-SWAP" />
+                </div>
+                <div class="form-row">
+                  <label for="form-bybit">Bybit 合约 Symbol</label>
+                  <input id="form-bybit" type="text" placeholder="例如: BTCUSDT" />
+                </div>
+                <div class="form-row">
+                  <label for="form-note">备注</label>
+                  <input id="form-note" type="text" placeholder="可选备注" />
+                </div>
+                <p id="form-error" class="form-error hidden"></p>
+                <div class="modal-actions">
+                  <button type="button" id="modal-cancel" class="collect-btn">取消</button>
+                  <button type="submit" id="modal-submit" class="refresh-btn">保存</button>
+                </div>
+              </form>
+            </div>
           </div>
-          <p id="confirm-text" class="confirm-text">确定要删除此币种吗？</p>
-          <div class="modal-actions">
-            <button id="confirm-cancel" class="collect-btn">取消</button>
-            <button id="confirm-ok" class="danger-btn">删除</button>
+
+          <div id="confirm-modal" class="modal-overlay hidden">
+            <div class="modal modal-sm">
+              <div class="modal-header">
+                <h3>确认删除</h3>
+              </div>
+              <p id="confirm-text" class="confirm-text">确定要删除此币种吗？</p>
+              <div class="modal-actions">
+                <button id="confirm-cancel" class="collect-btn">取消</button>
+                <button id="confirm-ok" class="danger-btn">删除</button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
 
     <script type="module" src="/src/admin.js"></script>
+    <script>
+      const toggle = document.getElementById("sidebar-toggle");
+      const sidebar = document.getElementById("sidebar");
+      const overlay = document.getElementById("sidebar-overlay");
+      toggle.addEventListener("click", () => {
+        sidebar.classList.toggle("open");
+        overlay.classList.toggle("open");
+      });
+      overlay.addEventListener("click", () => {
+        sidebar.classList.remove("open");
+        overlay.classList.remove("open");
+      });
+    </script>
   </body>
 </html>
