@@ -705,6 +705,95 @@ h2 {
   .signals-grid { grid-template-columns: 1fr; }
 }
 
+.logic-disclosure {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.logic-toggle {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.logic-toggle:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.logic-toggle-arrow {
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.logic-body {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.logic-body.hidden {
+  display: none;
+}
+
+.logic-section {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.logic-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.03em;
+}
+
+.logic-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.logic-table th {
+  text-align: left;
+  padding: 4px 8px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.logic-table td {
+  padding: 6px 8px;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.logic-table td:first-child {
+  color: var(--muted);
+  min-width: 220px;
+}
+
+.logic-table tr:last-child td {
+  border-bottom: none;
+}
+
 code {
   font-family: "SF Mono", "Consolas", monospace;
   font-size: 12px;

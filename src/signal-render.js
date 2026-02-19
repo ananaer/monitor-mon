@@ -11,6 +11,67 @@ const SIGNAL_CONFIG = {
 
 const DIR_LABEL = { long: "做多", short: "做空", flat: "横盘" };
 
+const LOGIC_DOCS = {
+  price: [
+    { cond: "创历史新高（lookback 96 点）", out: "score=1 · 方向做多" },
+    { cond: "创历史新低（lookback 96 点）", out: "score=1 · 方向做空" },
+    { cond: "斜率 > +0.5%（最近 12 点前后半段均值比）", out: "score=0.5 · 方向做多" },
+    { cond: "斜率 < -0.5%", out: "score=0.5 · 方向做空" },
+    { cond: "以上均不满足", out: "score=0 · 观望" },
+  ],
+  oi: [
+    { cond: "OI 斜率 > +0.2% 且资金费率未到 85 分位", out: "score=1 · 增仓不拥挤" },
+    { cond: "OI 斜率 > +0.2% 且资金费率 ≥ 85 分位", out: "score=0.5 · 增仓但拥挤" },
+    { cond: "OI 斜率 < -0.2%", out: "score=0 · 去杠杆（触发清算释放条件）" },
+    { cond: "以上均不满足", out: "score=0.3 · 横盘" },
+    { cond: "资金费率分位计算窗口", out: "取最近 96 点排序，极端 = 超过 85% 或低于 15%" },
+  ],
+  exec: [
+    { cond: "价差 > 基线（前段均值）× 1.5", out: "恶化 · 触发过滤" },
+    { cond: "1% 深度 < 基线 × 0.7", out: "恶化 · 触发过滤" },
+    { cond: "冲击成本 N2 > 基线 × 1.5", out: "恶化 · 触发过滤" },
+    { cond: "以上均正常", out: "执行质量良好" },
+    { cond: "基线定义", out: "同字段最近 96 点中去除末尾 6 点的均值" },
+  ],
+  classify: [
+    { cond: "执行质量恶化（任意一项）", out: "→ 过滤，不交易" },
+    { cond: "OI 去杠杆 且 价格 score ≥ 0.5", out: "→ 清算释放（反向方向）" },
+    { cond: "OI 拥挤 且 价格 score ≥ 0.5", out: "→ 挤仓突破（同向，小仓快出）" },
+    { cond: "价格 score ≥ 0.5 且 OI score ≥ 0.8 且 执行质量正常", out: "→ 顺势延续" },
+    { cond: "其余", out: "→ 观望" },
+  ],
+};
+
+let _logicExpanded = false;
+
+function logicTable(rows) {
+  return `<table class="logic-table">
+    <thead><tr><th>条件</th><th>结果</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr><td>${escapeHtml(r.cond)}</td><td>${escapeHtml(r.out)}</td></tr>`).join("")}</tbody>
+  </table>`;
+}
+
+function logicPanel() {
+  return `<div class="logic-panel" id="logic-panel">
+    <div class="logic-section">
+      <p class="logic-title">A · 价格结构（Price Breakout）</p>
+      ${logicTable(LOGIC_DOCS.price)}
+    </div>
+    <div class="logic-section">
+      <p class="logic-title">B · 衍生品拥挤度（OI + Funding Rate）</p>
+      ${logicTable(LOGIC_DOCS.oi)}
+    </div>
+    <div class="logic-section">
+      <p class="logic-title">C · 执行质量（Execution Quality）</p>
+      ${logicTable(LOGIC_DOCS.exec)}
+    </div>
+    <div class="logic-section">
+      <p class="logic-title">D · 信号分类（Signal Classifier）</p>
+      ${logicTable(LOGIC_DOCS.classify)}
+    </div>
+  </div>`;
+}
+
 function confidenceBar(pct) {
   if (!pct) return "";
   const w = Math.min(100, Math.max(0, pct));
@@ -25,7 +86,7 @@ function confidenceBar(pct) {
     </div>`;
 }
 
-function componentRow(icon, label, detail, ok) {
+function componentRow(label, detail, ok) {
   const dot = ok ? "#15803d" : "#94a3b8";
   return `
     <div class="sig-comp-row">
@@ -46,9 +107,9 @@ function renderSignalCard(item) {
 
   const components = price && oi && exec
     ? `<div class="sig-components">
-        ${componentRow("&#128200;", "价格结构", price.detail, price.score >= 0.5)}
-        ${componentRow("&#128196;", "衍生品拥挤度", oi.detail, oi.score >= 0.5 && !oi.crowded)}
-        ${componentRow("&#9654;", "执行质量", exec.detail, !exec.degraded)}
+        ${componentRow("价格结构", price.detail, price.score >= 0.5)}
+        ${componentRow("衍生品拥挤度", oi.detail, oi.score >= 0.5 && !oi.crowded)}
+        ${componentRow("执行质量", exec.detail, !exec.degraded)}
       </div>`
     : "";
 
@@ -79,5 +140,27 @@ export function renderSignals(history, overviewVenues) {
     return;
   }
 
-  container.innerHTML = `<div class="signals-grid">${results.map(renderSignalCard).join("")}</div>`;
+  const toggleId = "sig-logic-toggle";
+  const panelId = "sig-logic-body";
+
+  container.innerHTML = `
+    <div class="signals-grid">${results.map(renderSignalCard).join("")}</div>
+    <div class="logic-disclosure">
+      <button class="logic-toggle" id="${toggleId}" aria-expanded="false">
+        计算逻辑 &nbsp;<span class="logic-toggle-arrow" id="sig-logic-arrow">&#9656;</span>
+      </button>
+      <div class="logic-body hidden" id="${panelId}">
+        ${logicPanel()}
+      </div>
+    </div>`;
+
+  document.getElementById(toggleId)?.addEventListener("click", () => {
+    const body = document.getElementById(panelId);
+    const arrow = document.getElementById("sig-logic-arrow");
+    if (!body) return;
+    const open = !body.classList.contains("hidden");
+    body.classList.toggle("hidden", open);
+    if (arrow) arrow.innerHTML = open ? "&#9656;" : "&#9662;";
+    document.getElementById(toggleId)?.setAttribute("aria-expanded", String(!open));
+  });
 }
