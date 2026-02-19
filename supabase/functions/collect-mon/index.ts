@@ -245,7 +245,8 @@ async function collectOkx(): Promise<VenueResult> {
     const lastPrice = safeNum(t.last);
     const bidPrice = safeNum(t.bidPx);
     const askPrice = safeNum(t.askPx);
-    const volume = safeNum(t.volCcy24h);
+    const vol24hContracts = safeNum(t.vol24h);
+    const volume = vol24hContracts !== null && lastPrice !== null ? vol24hContracts * ctVal * lastPrice : safeNum(t.volCcy24h);
     const spread = bidPrice && askPrice ? calcSpreadBps(bidPrice, askPrice) : null;
     const mid = lastPrice ?? ((bidPrice ?? 0) + (askPrice ?? 0)) / 2;
     const fundRate = fund ? safeNum(fund.fundingRate) : null;
