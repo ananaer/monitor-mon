@@ -314,7 +314,7 @@ async function collectBybit(): Promise<VenueResult> {
   try {
     const [tickerRes, bookRes, fundRes, klinesRes] = await Promise.all([
       fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`),
-      fetch(`https://api.bybit.com/v5/market/orderbook?category=linear&symbol=${symbol}&limit=200`),
+      fetch(`https://api.bybit.com/v5/market/orderbook?category=linear&symbol=${symbol}&limit=500`),
       fetch(`https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${symbol}&limit=1`),
       fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=60&limit=26`),
     ]);
