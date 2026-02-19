@@ -9,6 +9,7 @@ const corsHeaders = {
 interface VenueResult {
   venue: string;
   symbol: string;
+  token: string;
   last_price: number | null;
   pct_change_1h: number | null;
   quote_volume_24h: number | null;
@@ -24,6 +25,15 @@ interface VenueResult {
   error_type: string | null;
   error_msg: string | null;
   raw_json: Record<string, unknown> | null;
+}
+
+interface TokenConfig {
+  id: number;
+  token: string;
+  enabled: boolean;
+  binance_symbol: string;
+  okx_inst_id: string;
+  bybit_symbol: string;
 }
 
 const NOTIONAL_N1 = 10_000;
@@ -116,9 +126,8 @@ function calcRvol24h(candles: [number, string, string, string, string, string][]
   return Math.sqrt(variance);
 }
 
-async function collectBinance(): Promise<VenueResult> {
+async function collectBinance(token: string, symbol: string): Promise<VenueResult> {
   const venue = "binance";
-  const symbol = "MONUSDT";
   try {
     const [tickerRes, bookRes, bookTickerRes, fundRes, oiRes, klinesRes] = await Promise.all([
       fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`),
@@ -170,7 +179,7 @@ async function collectBinance(): Promise<VenueResult> {
     }
 
     return {
-      venue, symbol,
+      venue, symbol, token,
       last_price: lastPrice,
       pct_change_1h: pct1h,
       quote_volume_24h: volume,
@@ -189,7 +198,7 @@ async function collectBinance(): Promise<VenueResult> {
     };
   } catch (e) {
     return {
-      venue, symbol,
+      venue, symbol, token,
       last_price: null, pct_change_1h: null, quote_volume_24h: null,
       spread_bps: null, depth_1pct_bid_usdt: null, depth_1pct_ask_usdt: null,
       depth_1pct_total_usdt: null, slip_bps_n1: null, slip_bps_n2: null,
@@ -199,9 +208,8 @@ async function collectBinance(): Promise<VenueResult> {
   }
 }
 
-async function collectOkx(): Promise<VenueResult> {
+async function collectOkx(token: string, instId: string): Promise<VenueResult> {
   const venue = "okx";
-  const instId = "MON-USDT-SWAP";
   const symbol = instId;
 
   const baseUrls = ["https://app.okx.com", "https://www.okx.com", "https://my.okx.com"];
@@ -279,7 +287,7 @@ async function collectOkx(): Promise<VenueResult> {
     } catch (_) {}
 
     return {
-      venue, symbol,
+      venue, symbol, token,
       last_price: lastPrice,
       pct_change_1h: pct1h,
       quote_volume_24h: volume,
@@ -298,7 +306,7 @@ async function collectOkx(): Promise<VenueResult> {
     };
   } catch (e) {
     return {
-      venue, symbol,
+      venue, symbol, token,
       last_price: null, pct_change_1h: null, quote_volume_24h: null,
       spread_bps: null, depth_1pct_bid_usdt: null, depth_1pct_ask_usdt: null,
       depth_1pct_total_usdt: null, slip_bps_n1: null, slip_bps_n2: null,
@@ -308,9 +316,8 @@ async function collectOkx(): Promise<VenueResult> {
   }
 }
 
-async function collectBybit(): Promise<VenueResult> {
+async function collectBybit(token: string, symbol: string): Promise<VenueResult> {
   const venue = "bybit";
-  const symbol = "MONUSDT";
   try {
     const [tickerRes, bookRes, fundRes, klinesRes] = await Promise.all([
       fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`),
@@ -360,7 +367,7 @@ async function collectBybit(): Promise<VenueResult> {
     }
 
     return {
-      venue, symbol,
+      venue, symbol, token,
       last_price: lastPrice,
       pct_change_1h: pct1h,
       quote_volume_24h: volume,
@@ -379,7 +386,7 @@ async function collectBybit(): Promise<VenueResult> {
     };
   } catch (e) {
     return {
-      venue, symbol,
+      venue, symbol, token,
       last_price: null, pct_change_1h: null, quote_volume_24h: null,
       spread_bps: null, depth_1pct_bid_usdt: null, depth_1pct_ask_usdt: null,
       depth_1pct_total_usdt: null, slip_bps_n1: null, slip_bps_n2: null,
@@ -392,11 +399,12 @@ async function collectBybit(): Promise<VenueResult> {
 function detectAlerts(
   results: VenueResult[],
   baselineMap: Map<string, { median_spread_bps: number | null; median_depth_total: number | null; median_slip_n2: number | null }>
-): Array<{ venue: string; alert_type: string; severity: string; message: string; threshold_val: number | null; current_val: number | null }> {
+): Array<{ venue: string; token: string; alert_type: string; severity: string; message: string; threshold_val: number | null; current_val: number | null }> {
   const alerts = [];
   for (const r of results) {
     if (r.error_type) continue;
-    const bl = baselineMap.get(r.venue);
+    const blKey = `${r.token}:${r.venue}`;
+    const bl = baselineMap.get(blKey) ?? baselineMap.get(r.venue);
     if (!bl) continue;
 
     if (bl.median_depth_total && r.depth_1pct_total_usdt !== null) {
@@ -404,9 +412,10 @@ function detectAlerts(
       if (ratio < 0.7) {
         alerts.push({
           venue: r.venue,
+          token: r.token,
           alert_type: "depth_shrink",
           severity: ratio < 0.4 ? "critical" : "warn",
-          message: `深度低于基线 ${(ratio * 100).toFixed(1)}% (基线 $${bl.median_depth_total.toFixed(0)})`,
+          message: `[${r.token}] 深度低于基线 ${(ratio * 100).toFixed(1)}% (基线 $${bl.median_depth_total.toFixed(0)})`,
           threshold_val: 0.7,
           current_val: ratio,
         });
@@ -418,9 +427,10 @@ function detectAlerts(
       if (ratio > 2.0) {
         alerts.push({
           venue: r.venue,
+          token: r.token,
           alert_type: "spread_widen",
           severity: "warn",
-          message: `价差扩大至 ${r.spread_bps.toFixed(2)} bps (基线 ${bl.median_spread_bps.toFixed(2)} bps, ${ratio.toFixed(1)}x)`,
+          message: `[${r.token}] 价差扩大至 ${r.spread_bps.toFixed(2)} bps (基线 ${bl.median_spread_bps.toFixed(2)} bps, ${ratio.toFixed(1)}x)`,
           threshold_val: 2.0,
           current_val: ratio,
         });
@@ -443,16 +453,36 @@ Deno.serve(async (req: Request) => {
 
     const cycleStart = new Date().toISOString();
 
-    const [binance, okx, bybit] = await Promise.all([
-      collectBinance(),
-      collectOkx(),
-      collectBybit(),
-    ]);
+    const { data: tokenConfigs, error: tokenErr } = await supabase
+      .from("tokens")
+      .select("*")
+      .eq("enabled", true);
 
-    const results = [binance, okx, bybit];
+    if (tokenErr) throw new Error(`load tokens: ${tokenErr.message}`);
+
+    const configs: TokenConfig[] = tokenConfigs ?? [];
+    if (configs.length === 0) {
+      return new Response(
+        JSON.stringify({ ok: true, message: "no enabled tokens", venues: 0, ok_count: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const allResults: VenueResult[] = [];
+
+    for (const cfg of configs) {
+      const [binance, okx, bybit] = await Promise.all([
+        cfg.binance_symbol ? collectBinance(cfg.token, cfg.binance_symbol) : Promise.resolve(null),
+        cfg.okx_inst_id ? collectOkx(cfg.token, cfg.okx_inst_id) : Promise.resolve(null),
+        cfg.bybit_symbol ? collectBybit(cfg.token, cfg.bybit_symbol) : Promise.resolve(null),
+      ]);
+      if (binance) allResults.push(binance);
+      if (okx) allResults.push(okx);
+      if (bybit) allResults.push(bybit);
+    }
+
     const tsNow = new Date().toISOString();
-
-    const rows = results.map((r) => ({ ...r, ts_utc: tsNow }));
+    const rows = allResults.map((r) => ({ ...r, ts_utc: tsNow }));
     const { error: insertErr } = await supabase.from("metrics_snapshot").insert(rows);
     if (insertErr) throw new Error(`insert metrics: ${insertErr.message}`);
 
@@ -462,12 +492,13 @@ Deno.serve(async (req: Request) => {
       baselineMap.set(b.venue, b);
     }
 
-    for (const r of results) {
+    for (const r of allResults) {
       if (r.error_type || !r.last_price) continue;
       const { data: recent } = await supabase
         .from("metrics_snapshot")
         .select("spread_bps, depth_1pct_total_usdt, slip_bps_n2, quote_volume_24h")
         .eq("venue", r.venue)
+        .eq("token", r.token)
         .is("error_type", null)
         .order("ts_utc", { ascending: false })
         .limit(200);
@@ -493,7 +524,7 @@ Deno.serve(async (req: Request) => {
       }, { onConflict: "venue" });
     }
 
-    const alertRows = detectAlerts(results, baselineMap);
+    const alertRows = detectAlerts(allResults, baselineMap);
     if (alertRows.length > 0) {
       const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
       for (const a of alertRows) {
@@ -510,23 +541,25 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const okCount = results.filter((r) => !r.error_type).length;
+    const okCount = allResults.filter((r) => !r.error_type).length;
     await supabase.from("runtime_state").upsert([
       { key: "service_status", value: okCount > 0 ? "running" : "degraded", updated_at: tsNow },
       { key: "last_cycle_end_utc", value: tsNow, updated_at: tsNow },
       { key: "last_cycle_start_utc", value: cycleStart, updated_at: tsNow },
       { key: "last_success_utc", value: okCount > 0 ? tsNow : "", updated_at: tsNow },
       { key: "venues_ok", value: String(okCount), updated_at: tsNow },
-      { key: "venues_total", value: String(results.length), updated_at: tsNow },
+      { key: "venues_total", value: String(allResults.length), updated_at: tsNow },
     ], { onConflict: "key" });
 
     return new Response(
       JSON.stringify({
         ok: true,
-        venues: results.length,
+        tokens: configs.map((c) => c.token),
+        venues: allResults.length,
         ok_count: okCount,
         ts: tsNow,
-        details: results.map((r) => ({
+        details: allResults.map((r) => ({
+          token: r.token,
           venue: r.venue,
           ok: !r.error_type,
           pct_change_1h: r.pct_change_1h,
