@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>告警记录 - MON 监控</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <style>
+      .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .filter-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .filter-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .filter-pill {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+        color: var(--muted);
+        padding: 5px 14px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+      }
+
+      .filter-pill:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .filter-pill.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .filter-pill.sev-critical.active {
+        background: var(--danger);
+        border-color: var(--danger);
+        color: #fff;
+      }
+
+      .filter-pill.sev-warn.active {
+        background: var(--warn);
+        border-color: var(--warn);
+        color: #fff;
+      }
+
+      .filter-divider {
+        width: 1px;
+        height: 20px;
+        background: var(--line);
+        flex-shrink: 0;
+      }
+
+      .venue-select {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--text);
+        padding: 5px 10px;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        outline: none;
+      }
+
+      .venue-select:focus {
+        border-color: var(--accent);
+      }
+
+      .alert-stats-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .alert-stat-pill {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        padding: 10px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 100px;
+      }
+
+      .alert-stat-val {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1;
+      }
+
+      .alert-stat-label {
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .alert-list-full {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .alert-item-full {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: start;
+        padding: 13px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .alert-item-full:last-child {
+        border-bottom: none;
+      }
+
+      .alert-left {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding-top: 1px;
+      }
+
+      .alert-center {
+        min-width: 0;
+      }
+
+      .alert-type-name {
+        margin: 0 0 3px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .alert-message {
+        margin: 0 0 4px;
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .alert-meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .alert-venue-badge {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text);
+        text-transform: uppercase;
+      }
+
+      .alert-right {
+        text-align: right;
+        flex-shrink: 0;
+        padding-top: 2px;
+      }
+
+      .alert-time {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .alert-threshold-row {
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .load-more-wrap {
+        text-align: center;
+        padding: 16px 0 4px;
+      }
+
+      .load-more-btn {
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--accent);
+        padding: 9px 28px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+
+      .load-more-btn:hover:not(:disabled) {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .load-more-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .result-count {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+
+      @media (max-width: 600px) {
+        .alert-item-full {
+          grid-template-columns: 1fr;
+        }
+
+        .alert-right {
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+
+      <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-mark">M</div>
+          <p class="sidebar-logo-name">MON 监控</p>
+          <p class="sidebar-logo-sub">多交易所流动性</p>
+        </div>
+
+        <nav class="sidebar-nav">
+          <p class="sidebar-section-label">监控</p>
+          <a href="/" class="nav-item">
+            <span class="nav-icon">&#128202;</span>
+            总览面板
+          </a>
+          <a href="/alerts.html" class="nav-item active">
+            <span class="nav-icon">&#128276;</span>
+            告警记录
+          </a>
+          <a href="/policies.html" class="nav-item">
+            <span class="nav-icon">&#128221;</span>
+            报警策略
+          </a>
+
+          <p class="sidebar-section-label" style="margin-top:16px">管理</p>
+          <a href="/admin.html" class="nav-item">
+            <span class="nav-icon">&#9881;</span>
+            采集器管理
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <p class="sidebar-footer-text">多交易所流动性监控</p>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div id="app">
+          <header class="hero">
+            <div>
+              <p class="eyebrow">ALERT RECORDS</p>
+              <h1>告警记录</h1>
+              <p class="subline">来自所有交易所的报警历史，按时间倒序排列</p>
+            </div>
+            <div class="actions">
+              <button id="refresh-btn" class="refresh-btn">刷新</button>
+              <p id="refresh-status" class="refresh-status status-running">加载中...</p>
+            </div>
+          </header>
+
+          <div class="alert-stats-row" id="stats-row" style="display:none">
+            <div class="alert-stat-pill">
+              <span class="alert-stat-val" id="stat-total">0</span>
+              <span class="alert-stat-label">当前显示</span>
+            </div>
+            <div class="alert-stat-pill">
+              <span class="alert-stat-val" id="stat-critical" style="color:var(--danger)">0</span>
+              <span class="alert-stat-label">CRITICAL</span>
+            </div>
+            <div class="alert-stat-pill">
+              <span class="alert-stat-val" id="stat-warn" style="color:var(--warn)">0</span>
+              <span class="alert-stat-label">WARN</span>
+            </div>
+            <div class="alert-stat-pill">
+              <span class="alert-stat-val" id="stat-venues">0</span>
+              <span class="alert-stat-label">涉及交易所</span>
+            </div>
+          </div>
+
+          <div class="filter-bar" id="filter-bar" style="display:none">
+            <span class="filter-label">严重等级</span>
+            <div class="filter-pills" id="severity-pills">
+              <button class="filter-pill active" data-sev="all">全部</button>
+              <button class="filter-pill sev-critical" data-sev="critical">CRITICAL</button>
+              <button class="filter-pill sev-warn" data-sev="warn">WARN</button>
+              <button class="filter-pill sev-info" data-sev="info">INFO</button>
+            </div>
+            <div class="filter-divider"></div>
+            <span class="filter-label">交易所</span>
+            <select class="venue-select" id="venue-select">
+              <option value="all">全部</option>
+            </select>
+          </div>
+
+          <p id="result-count" class="result-count hidden"></p>
+          <p id="empty-state" class="empty hidden">暂无告警记录</p>
+          <p id="error-state" class="error hidden"></p>
+
+          <ul id="alert-list" class="alert-list-full"></ul>
+
+          <div class="load-more-wrap" id="load-more-wrap" style="display:none">
+            <button id="load-more-btn" class="load-more-btn">加载更多</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/alerts.js"></script>
+    <script>
+      const toggle = document.getElementById("sidebar-toggle");
+      const sidebar = document.getElementById("sidebar");
+      const overlay = document.getElementById("sidebar-overlay");
+      toggle.addEventListener("click", () => {
+        sidebar.classList.toggle("open");
+        overlay.classList.toggle("open");
+      });
+      overlay.addEventListener("click", () => {
+        sidebar.classList.remove("open");
+        overlay.classList.remove("open");
+      });
+    </script>
+  </body>
+</html>

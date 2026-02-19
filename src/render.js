@@ -32,9 +32,6 @@ const els = {
   kpiTotalDepth: document.getElementById("kpi-total-depth"),
   venueTbody: document.getElementById("venue-tbody"),
   trendSummary: document.getElementById("trend-summary"),
-  alertCount: document.getElementById("alert-count"),
-  alertEmpty: document.getElementById("alert-empty"),
-  alertList: document.getElementById("alert-list"),
 };
 
 export function getEls() {
@@ -149,29 +146,6 @@ export function renderVenueTable(overview) {
   }).join("");
 
   els.venueTbody.innerHTML = rowsHtml || '<tr><td colspan="11">暂无数据</td></tr>';
-}
-
-export function renderAlerts(alerts) {
-  const items = alerts?.items || [];
-  els.alertCount.textContent = `最近 ${items.length} 条`;
-  if (items.length === 0) {
-    els.alertEmpty.classList.remove("hidden");
-    els.alertList.classList.add("hidden");
-    els.alertList.innerHTML = "";
-    return;
-  }
-  els.alertEmpty.classList.add("hidden");
-  els.alertList.classList.remove("hidden");
-  els.alertList.innerHTML = items.map((alert) => `
-    <li class="alert-item">
-      <div>
-        <span class="severity-tag sev-${escapeHtml(alert.severity || "info")}">${escapeHtml(alert.severity || "info")}</span>
-        <strong>${escapeHtml(alert.alert_type || "-")}</strong>
-        <span class="muted">${escapeHtml((alert.venue || "-").toUpperCase())}</span>
-      </div>
-      <p>${escapeHtml(alert.message || "-")}</p>
-      <p class="tiny">${escapeHtml(formatTime(alert.ts_utc))}</p>
-    </li>`).join("");
 }
 
 export function renderTrendSummary(history) {

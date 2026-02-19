@@ -30,13 +30,12 @@ async function fetchData() {
   self.postMessage({ type: "status", status: "fetching" });
 
   const tokenQ = `token=${encodeURIComponent(currentToken)}`;
-  const [overview, history, alerts] = await Promise.all([
+  const [overview, history] = await Promise.all([
     fetchJson(`/api-overview?${tokenQ}`),
     fetchJson(`/api-history?limit=120&${tokenQ}`),
-    fetchJson("/api-alerts?limit=50"),
   ]);
 
-  self.postMessage({ type: "data", overview, history, alerts });
+  self.postMessage({ type: "data", overview, history });
 }
 
 async function fetchTokenList() {

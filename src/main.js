@@ -5,7 +5,6 @@ import {
   setError,
   renderOverview,
   renderTrendSummary,
-  renderAlerts,
   updateRefreshHint,
   renderTokenSwitcher,
 } from "./render.js";
@@ -54,7 +53,6 @@ function createWorker() {
     if (msg.type === "data") {
       renderOverview(msg.overview);
       renderTrendSummary(msg.history);
-      renderAlerts(msg.alerts);
       setError("");
 
       nextAutoRefreshAt = Date.now() + refreshIntervalMs;
