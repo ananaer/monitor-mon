@@ -248,9 +248,9 @@ els.modalClose.addEventListener("click", closeModal);
 els.modalCancel.addEventListener("click", closeModal);
 els.modal.addEventListener("click", (e) => { if (e.target === els.modal) closeModal(); });
 els.form.addEventListener("submit", handleFormSubmit);
-els.confirmCancel.addEventListener("click", closeConfirm);
-els.confirmOk.addEventListener("click", handleConfirmDelete);
-els.confirmModal.addEventListener("click", (e) => { if (e.target === els.confirmModal) closeConfirm(); });
+els.confirmCancel.addEventListener("click", (e) => { e.stopPropagation(); closeConfirm(); });
+els.confirmOk.addEventListener("click", (e) => { e.stopPropagation(); handleConfirmDelete(); });
+els.confirmModal.addEventListener("click", (e) => { e.stopPropagation(); if (e.target === els.confirmModal) closeConfirm(); });
 
 loadStatus();
 loadTokens();
