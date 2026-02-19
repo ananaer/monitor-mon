@@ -192,9 +192,5 @@ export function renderOverview(overview) {
   renderVenueTable(overview);
 }
 
-export function updateRefreshHint(nextAutoRefreshAt, refreshIntervalMs) {
-  const remainMs = Math.max(0, nextAutoRefreshAt - Date.now());
-  const remainSec = Math.ceil(remainMs / 1000);
-  const intervalSec = Math.ceil(refreshIntervalMs / 1000);
-  els.refreshHint.textContent = `自动刷新倒计时：${remainSec}s（周期 ${intervalSec}s）`;
+export function updateRefreshHint(_nextAutoRefreshAt, _refreshIntervalMs) {
 }
