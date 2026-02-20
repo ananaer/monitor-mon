@@ -19,6 +19,9 @@ const els = {
   alertList: document.getElementById("alert-list"),
   loadMoreWrap: document.getElementById("load-more-wrap"),
   loadMoreBtn: document.getElementById("load-more-btn"),
+  fiGrid: document.getElementById("fi-grid"),
+  fiBadge: document.getElementById("fi-badge"),
+  fiMeta: document.getElementById("fi-meta"),
 };
 
 let allAlerts = [];
@@ -182,5 +185,39 @@ function initEvents() {
   });
 }
 
+async function loadFundingIntervals() {
+  try {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-funding-interval`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`请求失败 ${res.status}`);
+    const data = await res.json();
+    const items = data.items || [];
+
+    if (items.length === 0) {
+      els.fiGrid.innerHTML = `<span class="fi-empty">当前无合约使用 1 小时结算周期</span>`;
+      return;
+    }
+
+    els.fiBadge.textContent = `${items.length} 个合约 · 1h 周期`;
+    els.fiBadge.style.display = "";
+    const at = data.fetched_at ? new Date(data.fetched_at).toLocaleTimeString("zh-CN", { hour12: false }) : "";
+    if (at) els.fiMeta.textContent = `更新于 ${at}，共 ${data.total} 个合约`;
+
+    els.fiGrid.innerHTML = items
+      .sort((a, b) => String(a.symbol).localeCompare(String(b.symbol)))
+      .map((item) => `<span class="fi-chip">${escapeHtml(String(item.symbol))}</span>`)
+      .join("");
+  } catch (err) {
+    els.fiGrid.innerHTML = `<span class="fi-empty">加载失败: ${escapeHtml(err.message)}</span>`;
+  }
+}
+
 initEvents();
 loadAlerts();
+loadFundingIntervals();
