@@ -218,6 +218,19 @@ async function loadFundingIntervals() {
   }
 }
 
+function scheduleNextHourly(fn) {
+  const now = new Date();
+  const msUntilNext = (60 - now.getMinutes()) * 60 * 1000
+    - now.getSeconds() * 1000
+    - now.getMilliseconds()
+    + 30 * 1000;
+  setTimeout(() => {
+    fn();
+    setInterval(fn, 60 * 60 * 1000);
+  }, msUntilNext);
+}
+
 initEvents();
 loadAlerts();
 loadFundingIntervals();
+scheduleNextHourly(loadFundingIntervals);
